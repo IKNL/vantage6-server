@@ -2,10 +2,12 @@ import logging
 
 from vantage6.server import db
 from vantage6 import server
+from vantage6.common import logger_name
 from flask_jwt_extended import verify_jwt_in_request, get_jwt_identity
 import jwt
 from flask_socketio import join_room, send, leave_room, emit, Namespace
 from flask import g, session, request
+
 
 class DefaultSocketNamespace(Namespace):
     """Handlers for SocketIO events are different than handlers for routes and that
@@ -14,7 +16,7 @@ class DefaultSocketNamespace(Namespace):
     the context of a single long running request.
     """
 
-    log = logging.getLogger(__name__)
+    log = logging.getLogger(logger_name(__name__))
 
     def on_connect(self):
         """New incomming connections are authenticated using their
@@ -78,11 +80,12 @@ class DefaultSocketNamespace(Namespace):
         # FIXME: this raises errors:
         #   AttributeError: '_ManagedSession' object has no attribute '...'
         #
-        # for room in session.rooms:
+        for room in session.rooms:
         #     self.__leave_room_and_notify(room)
+            self.__leave_room_and_notify(room)
         #
-        # session.auth.status = 'offline'
-        # session.auth.save()
+        session.auth.status = 'offline'
+        session.auth.save()
 
         # It appears to be necessary to use the root socketio instance
         # otherwise events cannot be sent outside the current namespace.
@@ -101,7 +104,8 @@ class DefaultSocketNamespace(Namespace):
     def on_join_room(self, room):
         self.__join_room_and_notify(room)
 
-    def on_container_failed(self, node_id, status_code, result_id, collaboration_id):
+    def on_container_failed(self, node_id, status_code, result_id,
+                            collaboration_id):
         run_id = db.Result.get(result_id).task.run_id
 
         self.log.critical(
@@ -109,16 +113,14 @@ class DefaultSocketNamespace(Namespace):
             f" within collaboration_id={collaboration_id} on node_id={node_id}"
             f" exited with status_code={status_code}."
         )
-        # emit('message', "somewhere in the universe a container has crashed", room='all_connections')
-        # print("collaboration_"+str(collaboration_id))
 
         room = "collaboration_"+str(collaboration_id)
         emit("container_failed", run_id, room=room)
 
-    def on_ping(self, node_id):
-        # self.log.debug(f"ping from id={node_id}")
-        room = f"node_{node_id}"
-        emit("pang","success!", room=room)
+    # def on_ping(self, node_id):
+    #     self.log.debug(f"ping from id={node_id}")
+    #     room = f"node_{node_id}"
+    #     emit("pang", "success!", room=room)
 
     def __join_room_and_notify(self, room):
         join_room(room)
@@ -131,5 +133,3 @@ class DefaultSocketNamespace(Namespace):
         msg = f'{session.name} left room {room}'
         self.log.info(msg)
         emit('message', msg, room=room)
-
-
