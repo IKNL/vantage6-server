@@ -5,6 +5,7 @@ from flask import g, request
 from http import HTTPStatus
 from flasgger import swag_from
 from pathlib import Path
+from urllib.parse import urlencode
 
 from vantage6.common import logger_name
 from vantage6.server import db
@@ -19,6 +20,7 @@ from vantage6.server.resource import (
     parse_datetime,
     ServicesResources
 )
+from vantage6.server.resource.pagination import paginate, generate_pagination_header_link
 from vantage6.server.resource._schema import (
     ResultSchema,
     ResultTaskIncludedSchema
@@ -43,7 +45,7 @@ def setup(api, api_base, services):
     log.info(f'Setting up "{path}" and subdirectories')
 
     api.add_resource(
-        Result,
+        Results,
         path,
         endpoint='result_without_id',
         methods=('GET',),
@@ -79,6 +81,107 @@ def permissions(permissions: PermissionManager):
 # ------------------------------------------------------------------------------
 # Resources / API's
 # ------------------------------------------------------------------------------
+class Results(ServicesResources):
+
+    def __init__(self, socketio, mail, api, permissions):
+        super().__init__(socketio, mail, api, permissions)
+        self.r = getattr(self.permissions, module_name)
+
+    @only_for(['node', 'user', 'container'])
+    def get(self):
+        """
+        List results
+        ---
+        description: |
+        Returns a list of all results only if the node, user or container have the proper authorization
+        to do so.
+
+        ### Permission Table
+        | Rule name       | Scope         | Operation | Assigned to Node  | Assigned to Container | Description |
+        | --              | --            | --        | --                | -- | -- |
+        | Result   | Global        | View      | ❌                | ❌ | View any result  |
+        | Result   | Organization        | View      | ✅                | ✅ | View the results of your organizations collaborations |
+
+
+        parameters:
+        - in: path
+            name: id
+            schema:
+            type: integer
+            minimum: 1
+            description: "unique task identifier"
+            required: true
+        - in: query
+            name: state
+            schema:
+            type: string
+            description: the state of the task ('open')
+        - in: query
+            name: task_id
+            schema:
+            type: integer
+            description: "unique task identifier"
+        - in: query
+            name: node_id
+            schema:
+            type: integer
+            description: node id
+        - in: query
+            name: include
+            schema:
+            type: string
+            description: what to include ('task')
+
+        responses:
+        200:
+            description: Ok
+        401:
+            description: Unauthorized
+
+        security:
+        - bearerAuth: []
+
+        tags: ["Result"]
+        """
+        #FIXME: authorization org
+        auth_org = g.user.organization
+
+        session = Database().Session
+        q = session.query(db_Result)
+
+        if request.args.get('state') == 'open':
+            q = q.filter(db_Result.finished_at == None)
+
+        # q = q.join(db_Result)
+        if request.args.get('task_id'):
+            q = q.filter_by(task_id=request.args.get('task_id'))
+
+        q = q.join(Organization).join(Node).join(Task, db_Result.task)\
+            .join(Collaboration)
+
+        if request.args.get('node_id'):
+            q = q.filter(db.Node.id == request.args.get('node_id'))\
+                .filter(db.Collaboration.id == db.Node.collaboration_id)
+
+        if not self.r.v_glo.can():
+            if self.r.v_org.can():
+                col_ids = [col.id for col in auth_org.collaborations]
+                q = q.filter(Collaboration.id.in_(col_ids))
+            else:
+                return {'msg': 'You lack the permission to do that!'}, \
+                    HTTPStatus.UNAUTHORIZED
+
+        # query the DB and paginate
+        page = paginate(query=q, request=request)
+
+        s = result_inc_schema if request.args.get('include') == 'task' else \
+                result_schema
+
+        return s.dump(page.items, many=True).data, HTTPStatus.OK, {
+            'total-count': page.total,
+            'Link': generate_pagination_header_link(request, page)
+        }
+
 class Result(ServicesResources):
     """Resource for /api/result"""
 
@@ -89,9 +192,9 @@ class Result(ServicesResources):
     @only_for(['node', 'user', 'container'])
     @swag_from(str(Path(r"swagger/get_result_with_id.yaml")),
                endpoint="result_with_id")
-    @swag_from(str(Path(r"swagger/get_result_without_id.yaml")),
-               endpoint="result_without_id")
-    def get(self, id=None):
+    # @swag_from(str(Path(r"swagger/get_result_without_id.yaml")),
+    #            endpoint="result_without_id")
+    def get(self, id):
 
         # obtain requisters organization
         if g.user:
@@ -125,30 +228,36 @@ class Result(ServicesResources):
 
             q = q.join(Organization).join(Node).join(Task, db_Result.task)\
                 .join(Collaboration)
+
             if request.args.get('node_id'):
                 q = q.filter(db.Node.id == request.args.get('node_id'))\
                     .filter(db.Collaboration.id == db.Node.collaboration_id)
 
-            result = q.all()
+            if self.r.v_glo.can():
+                pass
+            elif self.r.v_org.can():
+                col_ids = [col.id for col in auth_org.collaborations]
+                q = q.filter(Collaboration.id.in_(col_ids))
+            else:
+                return {'msg': 'You lack the permission to do that!'}, \
+                    HTTPStatus.UNAUTHORIZED
 
-            # filter results based on permissions
-            if not self.r.v_glo.can():
-                if self.r.v_org.can():
-                    filtered_result = []
-                    for res in result:
-                        if res.task.collaboration in auth_org.collaborations:
-                            filtered_result.append(res)
-                    result = filtered_result
-                else:
-                    return {'msg': 'You lack the permission to do that!'}, \
-                        HTTPStatus.UNAUTHORIZED
+            # query the DB
+            page = paginate(
+                query=q,
+                page=int(request.args.get('page', 1)),
+                page_size=int(request.args.get('per_page', 10))
+            )
+            result = page.items
 
-        if request.args.get('include') == 'task':
-            s = result_inc_schema
-        else:
-            s = result_schema
+        s = result_inc_schema if request.args.get('include') == 'task' else \
+                result_schema
 
-        return s.dump(result, many=not id).data, HTTPStatus.OK
+        # return s.paginate_dump(page.ite, request), HTTPStatus.OK
+        return s.dump(result, many=not id).data, HTTPStatus.OK, {
+            'total-count': page.total,
+            'Link': '</result?page=5&per_page=10>; rel=self'
+        }
 
     @with_node
     @swag_from(str(Path(r"swagger/patch_result_with_id.yaml")),
