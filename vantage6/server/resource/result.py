@@ -89,54 +89,53 @@ class Results(ServicesResources):
 
     @only_for(['node', 'user', 'container'])
     def get(self):
-        """
-        List results
+        """ Returns a list of results
         ---
+
         description: |
-        Returns a list of all results only if the node, user or container have the proper authorization
-        to do so.
+            Returns a list of all results only if the node, user or container
+            have the proper authorization to do so.
 
-        ### Permission Table
-        | Rule name       | Scope         | Operation | Assigned to Node  | Assigned to Container | Description |
-        | --              | --            | --        | --                | -- | -- |
-        | Result   | Global        | View      | ❌                | ❌ | View any result  |
-        | Result   | Organization        | View      | ✅                | ✅ | View the results of your organizations collaborations |
-
+            ### Permission Table
+            | Rule name | Scope | Operation | Assigned to Node | Assigned to Container | Description |
+            | -- | -- | -- | -- | -- | -- |
+            | Result | Global | View | ❌ | ❌ | View any result |
+            | Result | Organization | View | ✅ | ✅ | View the results of your organizations collaborations |
 
         parameters:
-        - in: path
-            name: id
-            schema:
-            type: integer
-            minimum: 1
-            description: "unique task identifier"
-            required: true
-        - in: query
-            name: state
-            schema:
-            type: string
-            description: the state of the task ('open')
-        - in: query
-            name: task_id
-            schema:
-            type: integer
-            description: "unique task identifier"
-        - in: query
-            name: node_id
-            schema:
-            type: integer
-            description: node id
-        - in: query
-            name: include
-            schema:
-            type: string
-            description: what to include ('task')
+            - in: path
+              name: id
+              schema:
+                type: integer
+                minimum: 1
+                description: "unique task identifier"
+                required: true
+            - in: query
+              name: state
+              schema:
+                type: string
+                description: the state of the task ('open')
+            - in: query
+              name: task_id
+              schema:
+                type: integer
+                description: "unique task identifier"
+            - in: query
+              name: node_id
+              schema:
+                type: integer
+                description: node id
+            - in: query
+              name: include
+              schema:
+                type: string
+                description: what to include ('task')
 
         responses:
-        200:
-            description: Ok
-        401:
-            description: Unauthorized
+            200:
+                description: Ok
+            401:
+                description: Unauthorized
 
         security:
         - bearerAuth: []
@@ -179,7 +178,7 @@ class Results(ServicesResources):
 
         return s.dump(page.items, many=True).data, HTTPStatus.OK, {
             'total-count': page.total,
-            'Link': generate_pagination_header_link(request, page)
+            'Link': page.link(request)
         }
 
 class Result(ServicesResources):

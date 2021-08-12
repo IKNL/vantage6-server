@@ -6,6 +6,7 @@ import flask
 class Page:
 
     def __init__(self, items, page, page_size, total):
+        self.current_page = page
         self.items = items
         self.previous_page = None
         self.next_page = None
@@ -18,6 +19,29 @@ class Page:
             self.next_page = page + 1
         self.total = total
         self.pages = int(math.ceil(total / float(page_size)))
+
+    def link(self, request: flask.request):
+        url = request.path
+        args = request.args.copy()
+
+        def link_format(endpoint: str, params: dict, page: int, rel: str):
+            if page:
+                params['page'] = page
+                return f'<{endpoint}?{urlencode(params)}>;rel={rel}'
+            else:
+                return ''
+
+        navs = [
+            {'rel':'first', 'page': 1},
+            {'rel':'previous', 'page': self.previous_page},
+            {'rel':'self', 'page': self.current_page},
+            {'rel':'next', 'page': self.next_page},
+            {'rel':'last', 'page': self.pages},
+        ]
+
+        return  ', '.join([link_format(url, args, **nav) for nav in navs])
+
+
 
 def paginate(query, request):
 
