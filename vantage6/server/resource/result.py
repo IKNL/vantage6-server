@@ -103,23 +103,51 @@ class Results(ServicesResources):
             | Result | Organization | View | ✅ | ✅ | View the results of your organizations collaborations |
 
         parameters:
-            - in: path
-              name: id
+            - in: query
+              name: task_id
               schema:
                 type: integer
-                minimum: 1
-                description: "unique task identifier"
-                required: true
+                description: task id
+            - in: query
+              name: organization_id
+              schema:
+                type: integer
+                description: organization id
+            - in: query
+              name: assigned_from
+              schema:
+                type: date (yyyy-mm-dd)
+                description: show only task assigned from this date
+            - in: query
+              name: started_from
+              schema:
+                type: date (yyyy-mm-dd)
+                description: show only task started from this date
+            - in: query
+              name: finished_from
+              schema:
+                type: date (yyyy-mm-dd)
+                description: show only task finished from this date
+            - in: query
+              name: assigned_till
+              schema:
+                type: date (yyyy-mm-dd)
+                description: show only task assigned till this date
+            - in: query
+              name: started_till
+              schema:
+                type: date (yyyy-mm-dd)
+                description: show only task started till this date
+            - in: query
+              name: finished_till
+              schema:
+                type: date (yyyy-mm-dd)
+                description: show only task finished till this date
             - in: query
               name: state
               schema:
                 type: string
                 description: the state of the task ('open')
-            - in: query
-              name: task_id
-              schema:
-                type: integer
-                description: "unique task identifier"
             - in: query
               name: node_id
               schema:
@@ -129,7 +157,7 @@ class Results(ServicesResources):
               name: include
               schema:
                 type: string
-                description: what to include ('task')
+                description: what to include ('task', 'metadata')
 
         responses:
             200:
@@ -216,60 +244,20 @@ class Result(ServicesResources):
         else: # g.container
             auth_org =  Organization.get(g.container['organization_id'])
 
-        if id:
-            result = db_Result.get(id)
-            if not result:
-                return {'msg': f'Result id={id} not found!'}, \
-                    HTTPStatus.NOT_FOUND
-            if not self.r.v_glo.can():
-                c_orgs = result.task.collaboration.organizations
-                if not (self.r.v_org.can() and auth_org in c_orgs):
-                    return {'msg': 'You lack the permission to do that!'}, \
-                        HTTPStatus.UNAUTHORIZED
-        else:
-
-            session = Database().Session
-            q = session.query(db_Result)
-
-            if request.args.get('state') == 'open':
-                q = q.filter(db_Result.finished_at == None)
-
-            # q = q.join(db_Result)
-            if request.args.get('task_id'):
-                q = q.filter_by(task_id=request.args.get('task_id'))
-
-            q = q.join(Organization).join(Node).join(Task, db_Result.task)\
-                .join(Collaboration)
-
-            if request.args.get('node_id'):
-                q = q.filter(db.Node.id == request.args.get('node_id'))\
-                    .filter(db.Collaboration.id == db.Node.collaboration_id)
-
-            if self.r.v_glo.can():
-                pass
-            elif self.r.v_org.can():
-                col_ids = [col.id for col in auth_org.collaborations]
-                q = q.filter(Collaboration.id.in_(col_ids))
-            else:
+        result = db_Result.get(id)
+        if not result:
+            return {'msg': f'Result id={id} not found!'}, \
+                HTTPStatus.NOT_FOUND
+        if not self.r.v_glo.can():
+            c_orgs = result.task.collaboration.organizations
+            if not (self.r.v_org.can() and auth_org in c_orgs):
                 return {'msg': 'You lack the permission to do that!'}, \
                     HTTPStatus.UNAUTHORIZED
-
-            # query the DB
-            page = paginate(
-                query=q,
-                page=int(request.args.get('page', 1)),
-                page_size=int(request.args.get('per_page', 10))
-            )
-            result = page.items
 
         s = result_inc_schema if request.args.get('include') == 'task' else \
                 result_schema
 
-        # return s.paginate_dump(page.ite, request), HTTPStatus.OK
-        return s.dump(result, many=not id).data, HTTPStatus.OK, {
-            'total-count': page.total,
-            'Link': '</result?page=5&per_page=10>; rel=self'
-        }
+        return s.dump(result, many=False).data, HTTPStatus.OK
 
     @with_node
     @swag_from(str(Path(r"swagger/patch_result_with_id.yaml")),
