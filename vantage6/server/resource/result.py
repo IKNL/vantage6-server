@@ -20,7 +20,7 @@ from vantage6.server.resource import (
     parse_datetime,
     ServicesResources
 )
-from vantage6.server.resource.pagination import paginate, generate_pagination_header_link
+from vantage6.server.resource.pagination import paginate
 from vantage6.server.resource._schema import (
     ResultSchema,
     ResultTaskIncludedSchema
@@ -144,24 +144,35 @@ class Results(ServicesResources):
         """
         #FIXME: authorization org
         auth_org = g.user.organization
+        args = request.args
 
         session = Database().Session
         q = session.query(db_Result)
 
-        if request.args.get('state') == 'open':
-            q = q.filter(db_Result.finished_at == None)
+        # relation filters
+        for param in ['task_id', 'organization_id']:
+            if param in args:
+                q = q.filter(getattr(db_Result, param)==args[param])
 
-        # q = q.join(db_Result)
-        if request.args.get('task_id'):
-            q = q.filter_by(task_id=request.args.get('task_id'))
+        # date selections
+        for param in ['assigned', 'started', 'finished']:
+            if f'{param}_till' in args:
+                q = q.filter(getattr(db_Result, f'{param}_at')<=args[f'{param}_till'])
+            if f'{param}_from' in args:
+                q = q.filter(db_Result.assigned_at>=args[f'{param}_from'])
+
+        # custom filters
+        if args.get('state') == 'open':
+            q = q.filter(db_Result.finished_at == None)
 
         q = q.join(Organization).join(Node).join(Task, db_Result.task)\
             .join(Collaboration)
 
-        if request.args.get('node_id'):
-            q = q.filter(db.Node.id == request.args.get('node_id'))\
+        if args.get('node_id'):
+            q = q.filter(db.Node.id == args.get('node_id'))\
                 .filter(db.Collaboration.id == db.Node.collaboration_id)
 
+        # filter based on permissions
         if not self.r.v_glo.can():
             if self.r.v_org.can():
                 col_ids = [col.id for col in auth_org.collaborations]
@@ -171,15 +182,17 @@ class Results(ServicesResources):
                     HTTPStatus.UNAUTHORIZED
 
         # query the DB and paginate
+        q = q.order_by(db_Result.id)
         page = paginate(query=q, request=request)
 
-        s = result_inc_schema if request.args.get('include') == 'task' else \
+        # serialization of the models
+        s = result_inc_schema if 'task' in args.getlist('include') else \
                 result_schema
 
-        return s.dump(page.items, many=True).data, HTTPStatus.OK, {
-            'total-count': page.total,
-            'Link': page.link(request)
-        }
+        dump = s.meta_dump if 'metadata' in args.getlist('include') else \
+            s.default_dump
+
+        return dump(page), HTTPStatus.OK, page.headers
 
 class Result(ServicesResources):
     """Resource for /api/result"""

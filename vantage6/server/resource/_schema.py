@@ -106,6 +106,14 @@ class HATEOASModelSchema(ModelSchema):
         else:
             log.error("No API found?")
 
+    def meta_dump(self, pagination):
+        """Based on type make a dump"""
+        data = self.default_dump(pagination)
+        return {'data': data, 'links': pagination.metadata_links}
+
+    def default_dump(self, pagination):
+        return self.dump(pagination.page.items, many=True).data
+
 
 # /task/{id}
 class TaskSchema(HATEOASModelSchema):

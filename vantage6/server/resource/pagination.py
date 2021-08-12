@@ -1,7 +1,13 @@
 import math
-from urllib.parse import urlencode
+import logging
 
-import flask
+from urllib.parse import urlencode
+import sqlalchemy
+
+from vantage6.common import logger_name
+
+module_name = logger_name(__name__)
+log = logging.getLogger(module_name)
 
 class Page:
 
@@ -20,73 +26,68 @@ class Page:
         self.total = total
         self.pages = int(math.ceil(total / float(page_size)))
 
-    def link(self, request: flask.request):
-        url = request.path
-        args = request.args.copy()
 
-        def link_format(endpoint: str, params: dict, page: int, rel: str):
-            if page:
-                params['page'] = page
-                return f'<{endpoint}?{urlencode(params)}>;rel={rel}'
-            else:
-                return ''
+class Pagination:
+
+    def __init__(self, items, page: int, page_size, total, request):
+        self.page = Page(items, page, page_size, total)
+        self.request = request
+
+    @property
+    def link_header(self) -> str:
+        link_strs = [f'<{url}>; rel={rel}' for rel, url in \
+                     self.metadata_links.items()]
+        return ','.join(link_strs)
+
+    @property
+    def headers(self):
+        return {
+            'total-count': self.page.total,
+            'Link': self.link_header
+        }
+
+    @property
+    def metadata_links(self) -> dict:
+        url = self.request.path
+        args = self.request.args.copy()
 
         navs = [
             {'rel':'first', 'page': 1},
-            {'rel':'previous', 'page': self.previous_page},
-            {'rel':'self', 'page': self.current_page},
-            {'rel':'next', 'page': self.next_page},
-            {'rel':'last', 'page': self.pages},
+            {'rel':'previous', 'page': self.page.previous_page},
+            {'rel':'self', 'page': self.page.current_page},
+            {'rel':'next', 'page': self.page.next_page},
+            {'rel':'last', 'page': self.page.pages},
         ]
 
-        return  ', '.join([link_format(url, args, **nav) for nav in navs])
+        links = {}
+        for nav in navs:
+            if nav['page']:
+                args['page'] = nav['page']
+                links[nav['rel']] = f'{url}?{urlencode(args)}'
 
+        return links
 
+def paginate(query: sqlalchemy.orm.query, request):
 
-def paginate(query, request):
+    # We remove the ordering of the query since it doesn't matter for getting a count and
+    # might have performance implications as discussed on this Flask-SqlAlchemy issue
+    # https://github.com/mitsuhiko/flask-sqlalchemy/issues/100
+    total = query.distinct().order_by(None).count()
 
-    page = int(request.args.get('page', 1))
-    per_page = int(request.args.get('per_page', 10))
+    # check if pagination is desired, else return all records
+    page_id = request.args.get('page')
+    if not page_id:
+        page_id = 1
+        per_page = total
+    else:
+        page_id = int(page_id)
+        per_page = int(request.args.get('per_page', 10))
 
-    if page <= 0:
+    if page_id <= 0:
         raise AttributeError('page needs to be >= 1')
     if per_page <= 0:
         raise AttributeError('per_page needs to be >= 1')
 
-    items = query.limit(per_page).offset((page - 1) * per_page).all()
-    # We remove the ordering of the query since it doesn't matter for getting a count and
-    # might have performance implications as discussed on this Flask-SqlAlchemy issue
-    # https://github.com/mitsuhiko/flask-sqlalchemy/issues/100
-    total = query.order_by(None).count()
-    return Page(items, page, per_page, total)
+    items = query.distinct().limit(per_page).offset((page_id - 1) * per_page).all()
 
-def generate_pagination_header_link(request: flask.request, page: Page):
-
-    original_arguments = request.args.copy()
-    template = '<{url}>;rel={rel},'
-
-    if 'page' not in original_arguments:
-        original_arguments['page'] = 1
-    if 'per_page' not in original_arguments:
-        original_arguments['per_page'] = 10
-
-    link = template.format(url=urlencode(original_arguments), rel='self')
-
-    if page.has_next:
-        original_arguments['page'] = page.next_page
-        link += template.format(url=urlencode(original_arguments), rel='next')
-
-    if page.has_previous:
-
-        original_arguments['page'] = page.previous_page
-        link += template.format(url=urlencode(original_arguments), rel='previous')
-
-
-    original_arguments['page'] = 1
-    link += template.format(url=urlencode(original_arguments), rel='first')
-
-
-    original_arguments['page'] = page.pages
-    link += template.format(url=urlencode(original_arguments), rel='last')
-
-    return link
+    return Pagination(items, page_id, per_page, total, request)
