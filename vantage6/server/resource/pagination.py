@@ -9,6 +9,7 @@ from vantage6.common import logger_name
 module_name = logger_name(__name__)
 log = logging.getLogger(module_name)
 
+
 class Page:
 
     def __init__(self, items, page, page_size, total):
@@ -35,7 +36,7 @@ class Pagination:
 
     @property
     def link_header(self) -> str:
-        link_strs = [f'<{url}>; rel={rel}' for rel, url in \
+        link_strs = [f'<{url}>; rel={rel}' for rel, url in
                      self.metadata_links.items()]
         return ','.join(link_strs)
 
@@ -52,11 +53,11 @@ class Pagination:
         args = self.request.args.copy()
 
         navs = [
-            {'rel':'first', 'page': 1},
-            {'rel':'previous', 'page': self.page.previous_page},
-            {'rel':'self', 'page': self.page.current_page},
-            {'rel':'next', 'page': self.page.next_page},
-            {'rel':'last', 'page': self.page.pages},
+            {'rel': 'first', 'page': 1},
+            {'rel': 'previous', 'page': self.page.previous_page},
+            {'rel': 'self', 'page': self.page.current_page},
+            {'rel': 'next', 'page': self.page.next_page},
+            {'rel': 'last', 'page': self.page.pages},
         ]
 
         links = {}
@@ -67,10 +68,12 @@ class Pagination:
 
         return links
 
+
 def paginate(query: sqlalchemy.orm.query, request):
 
-    # We remove the ordering of the query since it doesn't matter for getting a count and
-    # might have performance implications as discussed on this Flask-SqlAlchemy issue
+    # We remove the ordering of the query since it doesn't matter for getting
+    # a count and might have performance implications as discussed on this
+    # Flask-SqlAlchemy issue
     # https://github.com/mitsuhiko/flask-sqlalchemy/issues/100
     total = query.distinct().order_by(None).count()
 
@@ -88,6 +91,7 @@ def paginate(query: sqlalchemy.orm.query, request):
     if per_page <= 0:
         raise AttributeError('per_page needs to be >= 1')
 
-    items = query.distinct().limit(per_page).offset((page_id - 1) * per_page).all()
+    items = query.distinct().limit(per_page).offset((page_id - 1) * per_page)\
+        .all()
 
     return Pagination(items, page_id, per_page, total, request)
