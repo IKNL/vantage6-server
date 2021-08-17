@@ -102,8 +102,8 @@ class Role(ServicesResources):
     def get(self, id=None):
         """View roles
 
-        Depending on permission, you can view nothing, your organization or all the
-        available roles at the server.
+        Depending on permission, you can view nothing, your organization or all
+        the available roles at the server.
         """
         if self.r.v_glo.can():
             # view all roles at the server
@@ -227,6 +227,10 @@ class Role(ServicesResources):
             return {"msg": f"Role with id={id} not found."}, \
                 HTTPStatus.NOT_FOUND
 
+        if role in g.user.roles:
+            return {'msg': 'You cannot delete your own roles!'}, \
+                HTTPStatus.UNAUTHORIZED
+
         if not self.r.d_glo.can():
             if not self.r.d_org.can():
                 return {'msg': 'You do not have permission to delete roles!'},\
@@ -314,6 +318,10 @@ class RoleRules(ServicesResources):
         if not rule:
             return {'msg': f'Rule id={rule_id} not found!'}, \
                 HTTPStatus.NOT_FOUND
+
+        if role in g.user.roles:
+            return {'msg': 'You cannot delete rules from your own roles!'}, \
+                HTTPStatus.UNAUTHORIZED
 
         if not self.r.d_glo.can():
             if not (self.r.d_org.can() and
