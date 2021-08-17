@@ -86,16 +86,6 @@ class ResultBase(ServicesResources):
         super().__init__(socketio, mail, api, permissions)
         self.r = getattr(self.permissions, module_name)
 
-    @staticmethod
-    def obtain_auth_organization():
-        # obtain requisters organization
-        if g.user:
-            return g.user.organization
-        elif g.node:
-            return g.node.organization
-        else:  # g.container
-            return Organization.get(g.container['organization_id'])
-
 
 class Results(ResultBase):
 

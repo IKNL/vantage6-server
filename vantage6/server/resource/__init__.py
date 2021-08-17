@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import datetime
 import logging
+import math
 
 from functools import wraps
 
@@ -24,6 +25,27 @@ class ServicesResources(Resource):
         self.api = api
         self.permissions = permissions
 
+    @staticmethod
+    def obtain_auth():
+        if g.user:
+            return g.auth
+        if g.node:
+            return g.node
+        if g.container:
+            return g.container
+
+    @staticmethod
+    def obtain_organization_id():
+        if g.user:
+            return g.user.organization.id
+        elif g.node:
+            return g.node.organization.id
+        else:
+            return g.container["organization_id"]
+
+    @staticmethod
+    def obtain_auth_organization():
+        return db.Organization.get(ServicesResources.obtain_organization_id())
 
 # ------------------------------------------------------------------------------
 # Helper functions/decoraters ...
