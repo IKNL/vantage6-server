@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from enum import unique
 import logging
 
 from flask import request, g
@@ -8,6 +9,9 @@ from pathlib import Path
 
 from vantage6.common import logger_name
 from vantage6.server import db
+from vantage6.server.model import organization
+from vantage6.server.model.base import Database
+from vantage6.server.resource.pagination import paginate
 from vantage6.server.permission import (
     Scope as S,
     Operation as P,
@@ -34,10 +38,10 @@ def setup(api, api_base, services):
     log.info(f'Setting up "{path}" and subdirectories')
 
     api.add_resource(
-        Organization,
+        Organizations,
         path,
         endpoint='organization_without_id',
-        methods=('GET', 'POST'),
+        methods=('GET',),
         resource_class_kwargs=services
      )
     api.add_resource(
@@ -88,80 +92,58 @@ def permissions(permissions: PermissionManager):
 # ------------------------------------------------------------------------------
 # Resources / API's
 # ------------------------------------------------------------------------------
-class Organization(ServicesResources):
+org_schema = OrganizationSchema()
 
-    org_schema = OrganizationSchema()
+
+class OrganizationBase(ServicesResources):
 
     def __init__(self, socketio, mail, api, permissions):
         super().__init__(socketio, mail, api, permissions)
         self.r = getattr(self.permissions, module_name)
 
+
+class Organizations(OrganizationBase):
+
     @only_for(["user", "node", "container"])
-    @swag_from(str(Path(r"swagger/get_organization_with_id.yaml")),
-               endpoint='organization_with_id')
     @swag_from(str(Path(r"swagger/get_organization_without_id.yaml")),
                endpoint='organization_without_id')
-    def get(self, id=None):
+    def get(self):
 
-        # determine the organization to which the auth belongs
-        if g.container:
-            auth_org_id = g.container["organization_id"]
-        elif g.node:
-            auth_org_id = g.node.organization_id
-        else:  # g.user:
-            auth_org_id = g.user.organization_id
-        auth_org = db.Organization.get(auth_org_id)
+        # Obtain the organization of the requester
+        auth_org = self.obtain_auth_organization()
 
-        # retrieve requested organization
-        req_org = db.Organization.get(id)
-        accepted = False
-
-        # check if he want a single or all organizations
-        if id:
-            # Check if auth has enough permissions
-            if self.r.v_glo.can():
-                accepted = True
-            elif self.r.v_col.can():
-                # check if the organization is whithin a collaboration
-                for col in auth_org.collaborations:
-                    if req_org in col.organizations:
-                        accepted = True
-                if req_org == auth_org:
-                    accepted = True
-            elif self.r.v_org.can():
-                accepted = auth_org == req_org
-
-            if accepted:
-                return self.org_schema.dump(req_org, many=False).data, \
-                    HTTPStatus.OK
+        # query
+        q = Database().Session.query(db.Organization)
 
         # filter de list of organizations based on the scope
-        else:
-            organizations = []
-            if self.r.v_glo.can():
-                organizations = req_org
-                accepted = True
-            elif self.r.v_col.can():
-                for col in auth_org.collaborations:
-                    for org in col.organizations:
-                        if org not in organizations:
-                            organizations.append(org)
-                # when you do not participate in any collaboration
-                # you still want to see your own organization
-                if not organizations:
-                    organizations.append(auth_org)
-                accepted = True
-            elif self.r.v_org.can():
-                organizations = [auth_org]
-                accepted = True
+        if self.r.v_glo.can():
+            # view all organizations
+            pass
 
-            if accepted:
-                return self.org_schema.dump(organizations, many=True).data, \
-                    HTTPStatus.OK
+        elif self.r.v_col.can():
+            # obtain collaborations your organization participates in
+            collabs = Database().Session.query(db.Collaboration).filter(
+                db.Collaboration.organizations.any(id=auth_org.id)
+            ).all()
 
-        # If you get here you do not have permission to see anything
-        return {'msg': 'You do not have permission to do that!'}, \
-            HTTPStatus.UNAUTHORIZED
+            # list comprehension fetish, and add own organization in case
+            # this organization does not participate in any collaborations yet
+            org_ids = [o.id for col in collabs for o in col.organizations]
+            org_ids = list(set(org_ids + [auth_org.id]))
+
+            # select only the organizations in the collaborations
+            q = q.filter(db.Organization.id.in_(org_ids))
+
+        elif self.r.v_org.can():
+            q = q.filter(db.Organization.id == auth_org.id)
+
+        page = paginate(query=q, request=request)
+
+        dump = org_schema.meta_dump if 'metadata' in \
+            request.args.getlist('include') else org_schema.default_dump
+
+        return dump(page), HTTPStatus.OK, page.headers
+
 
     @only_for(["user"])
     @swag_from(str(Path(r"swagger/post_organization_without_id.yaml")),
@@ -185,12 +167,53 @@ class Organization(ServicesResources):
         )
         organization.save()
 
-        return self.org_schema.dump(organization, many=False).data, \
+        return org_schema.dump(organization, many=False).data, \
             HTTPStatus.CREATED
+
+
+class Organization(OrganizationBase):
+
+    @only_for(["user", "node", "container"])
+    @swag_from(str(Path(r"swagger/get_organization_with_id.yaml")),
+               endpoint='organization_with_id')
+    def get(self, id):
+
+        # obtain organization of authenticated
+        auth_org = self.obtain_auth_organization()
+
+        # retrieve requested organization
+        req_org = db.Organization.get(id)
+        accepted = False
+
+        # check if he want a single or all organizations
+
+        # Check if auth has enough permissions
+        if self.r.v_glo.can():
+            accepted = True
+        elif self.r.v_col.can():
+            # check if the organization is whithin a collaboration
+            for col in auth_org.collaborations:
+                if req_org in col.organizations:
+                    accepted = True
+            # or that the organization is auths org
+            if req_org == auth_org:
+                accepted = True
+        elif self.r.v_org.can():
+            accepted = auth_org == req_org
+
+        if accepted:
+            return org_schema.dump(req_org, many=False).data, \
+                HTTPStatus.OK
+        else:
+            return {'msg': 'You do not have permission to do that!'}, \
+                HTTPStatus.UNAUTHORIZED
+
+
+
 
     @only_for(["user", "node"])
     @swag_from(str(Path(r"swagger/patch_organization_with_id.yaml")),
-        endpoint='organization_with_id')
+               endpoint='organization_with_id')
     def patch(self, id):
         """Update organization."""
 
@@ -212,7 +235,7 @@ class Organization(ServicesResources):
                 setattr(organization, field, data.get(field))
 
         organization.save()
-        return self.org_schema.dump(organization, many=False).data, \
+        return org_schema.dump(organization, many=False).data, \
             HTTPStatus.OK
 
 
