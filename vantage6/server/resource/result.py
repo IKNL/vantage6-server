@@ -104,16 +104,22 @@ class Results(ResultBase):
         """ Returns a list of results
         ---
 
-        description: |
+        description: >-
             Returns a list of all results only if the node, user or container
-            have the proper authorization to do so.
+            have the proper authorization to do so.\n\n
 
-            ### Permission Table
-            | Rule name | Scope | Operation | Node | Container | Description |
-            | -- | -- | -- | -- | -- | -- |
-            | Result | Global | View | ❌ | ❌ | View any result |
+            ### Permission Table\n
+            |Rulename|Scope|Operation|Node|Container|Description|\n
+            | -- | -- | -- | -- | -- | -- |\n
+            | Result | Global | View | ❌ | ❌ | View any result |\n
             | Result | Organization | View | ✅ | ✅ | View the results of your
-                organizations collaborations |
+            organizations collaborations |\n\n
+
+            Accesible as: `node` , `user` and `container`.\n\n
+
+            Results can be paginated by using the parameter `page`. The
+            pagination metadata can be included using `include=metadata`, note
+            that this will put the actual data in an envelope.
 
         parameters:
             - in: query
@@ -171,6 +177,16 @@ class Results(ResultBase):
               schema:
                 type: string (can be multiple)
               description: what to include ('task', 'metadata')
+            - in: query
+              name: page
+              schema:
+                type: integer
+              description: page number for pagination
+            - in: query
+              name: per_page
+              schema:
+                type: integer
+              description: number of items per page
 
         responses:
             200:
@@ -223,7 +239,7 @@ class Results(ResultBase):
                     HTTPStatus.UNAUTHORIZED
 
         # query the DB and paginate
-        q = q.order_by(db_Result.id)
+        # q = q.order_by(db_Result.id)
         page = paginate(query=q, request=request)
 
         # serialization of the models
@@ -244,40 +260,42 @@ class Result(ResultBase):
         """ Get a single result
         ---
 
-        description: |
-            Returns a result from a task specified by an id
+        description: >-
+            Returns a result from a task specified by an id. \n\n
 
-            ### Permission Table
-            | Rule name | Scope | Operation | Node| Container | Description |
-            | --  | -- | -- | -- | -- |
-            | Result | Global | View | ❌ | ❌ | View any result  |
-            | Result | Organization | View | ✅ | ✅ | View the results of your
-            organizations collaborations |
+            ### Permission Table\n
+            | Rule name | Scope | Operation | Node| Container | Description |\n
+            | -- | -- | -- | -- | -- | -- |\n
+            | Result | Global | View | ❌ | ❌ | View any result |\n
+            | Result | Organization | View | ✅ | ✅ | View the results of
+            your organizations collaborations | \n
+
+            Accessable as: `node`, `user` and `container`.
 
         parameters:
-        - in: path
+          - in: path
             name: id
             schema:
-            type: integer
+              type: integer
             minimum: 1
-            description: "unique task identifier"
+            description: unique task identifier
             required: true
-        - in: query
+          - in: query
             name: include
             schema:
-            type: string
+              type: string
             description: what to include ('task')
 
         responses:
-        200:
-            description: Ok
-        401:
-            description: Unauthorized or missing permission
-        404:
-            description: result id not found
+          200:
+              description: Ok
+          401:
+              description: Unauthorized or missing permission
+          404:
+              description: result id not found
 
         security:
-        - bearerAuth: []
+          - bearerAuth: []
 
         tags: ["Result"]
         """
