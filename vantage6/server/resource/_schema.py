@@ -280,8 +280,9 @@ class RuleSchema(HATEOASModelSchema):
 
     scope = fields.Function(func=lambda obj: obj.scope.name)
     operation = fields.Function(func=lambda obj: obj.operation.name)
-    roles = fields.Method("roles")
+    # roles = fields.Method("roles")
     users = fields.Method("users")
 
     class Meta:
         model = db.Rule
+        exclude = ('roles',)
