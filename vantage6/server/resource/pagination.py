@@ -113,6 +113,12 @@ def paginate_list(items: list, request):
     if per_page <= 0:
         raise AttributeError('per_page needs to be >= 1')
 
+    beginning = (page_id - 1) * per_page
+    ending = page_id * per_page
+    if ending > total:
+        ending = total
+    items = items[beginning:ending]
+
     return Pagination(items, page_id, per_page, total, request)
 
 
