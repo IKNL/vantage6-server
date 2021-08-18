@@ -95,3 +95,24 @@ def paginate(query: sqlalchemy.orm.query, request):
         .all()
 
     return Pagination(items, page_id, per_page, total, request)
+
+
+def paginate_list(items: list, request):
+
+    page_id = request.args.get('page')
+    total = len(items)
+    if not page_id:
+        page_id = 1
+        per_page = total
+    else:
+        page_id = int(page_id)
+        per_page = int(request.args.get('per_page', 10))
+
+    if page_id <= 0:
+        raise AttributeError('page needs to be >= 1')
+    if per_page <= 0:
+        raise AttributeError('per_page needs to be >= 1')
+
+    return Pagination(items, page_id, per_page, total, request)
+
+
