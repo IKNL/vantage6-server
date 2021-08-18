@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-from enum import unique
 import logging
 
 from flask import request, g
@@ -9,7 +8,6 @@ from pathlib import Path
 
 from vantage6.common import logger_name
 from vantage6.server import db
-from vantage6.server.model import organization
 from vantage6.server.model.base import Database
 from vantage6.server.resource.pagination import paginate
 from vantage6.server.permission import (
@@ -105,9 +103,58 @@ class OrganizationBase(ServicesResources):
 class Organizations(OrganizationBase):
 
     @only_for(["user", "node", "container"])
-    @swag_from(str(Path(r"swagger/get_organization_without_id.yaml")),
-               endpoint='organization_without_id')
     def get(self):
+        """ Returns a list organizations
+
+        description: >-
+            Filters through a list of organizations based on scope and returns
+            a list of organizations\n\n
+
+            ### Permission Table\n
+            |Rule name|Scope|Operation|Node|Container|Description|\n
+            |--|--|--|--|--|--|\n
+            |Node|Global|View|❌|❌|View all organizations|\n
+            |Node|Collaboration|View|✅|✅|View a list of organizations within
+            the scope of the collaboration|\n
+            |Node|Organization|View|❌|❌|View a list of organizations that
+            the user is part of|\n\n
+
+            Accesable for: `node`, `user` and `container`.\n\n
+
+            Organizations can be paginated by using the parameter `page`. The
+            pagination metadata can be included using `include=metadata`, note
+            that this will put the actual data in an envelope.
+
+        parameters:
+            - in: query
+              name: include
+              schema:
+                type: string (can be multiple)
+              description: what to include ('metadata')
+            - in: query
+              name: page
+              schema:
+                type: integer
+              description: page number for pagination
+            - in: query
+              name: per_page
+              schema:
+                type: integer
+              description: number of items per page
+
+        responses:
+            200:
+                description: Ok
+            404:
+                description: organization not found
+            401:
+                description: Unauthorized or missing permission
+
+        security:
+            - bearerAuth: []
+
+        tags: ["Organization"]
+        """
 
         # Obtain the organization of the requester
         auth_org = self.obtain_auth_organization()
@@ -136,14 +183,18 @@ class Organizations(OrganizationBase):
 
         elif self.r.v_org.can():
             q = q.filter(db.Organization.id == auth_org.id)
+        else:
+            return {'msg': 'You lack the permission to do that!'}, \
+                HTTPStatus.UNAUTHORIZED
 
+        # paginate the results
         page = paginate(query=q, request=request)
 
+        # serialization of DB model
         dump = org_schema.meta_dump if 'metadata' in \
             request.args.getlist('include') else org_schema.default_dump
 
         return dump(page), HTTPStatus.OK, page.headers
-
 
     @only_for(["user"])
     @swag_from(str(Path(r"swagger/post_organization_without_id.yaml")),
@@ -207,9 +258,6 @@ class Organization(OrganizationBase):
         else:
             return {'msg': 'You do not have permission to do that!'}, \
                 HTTPStatus.UNAUTHORIZED
-
-
-
 
     @only_for(["user", "node"])
     @swag_from(str(Path(r"swagger/patch_organization_with_id.yaml")),
