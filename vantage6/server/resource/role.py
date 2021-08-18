@@ -101,8 +101,6 @@ class RoleBase(ServicesResources):
 class Roles(RoleBase):
 
     @with_user
-    @swag_from(str(Path(r"swagger/get_role_without_id.yaml")),
-               endpoint='role_without_id')
     def get(self):
         """Returns a list of roles
         ---
@@ -113,9 +111,9 @@ class Roles(RoleBase):
             organization.\n\n
 
             ### Permission Table\n
-            |Rulename|Scope|Operation|Node|Container|Description|
-            |--|--|--|--|--|--|
-            |Role|Global|View|❌|❌|View all roles|
+            |Rulename|Scope|Operation|Node|Container|Description|\n
+            |--|--|--|--|--|--|\n
+            |Role|Global|View|❌|❌|View all roles|\n
             |Role|Organization|View|❌|❌|View roles that are part of your
             organization|\n\n
 
@@ -318,7 +316,7 @@ class RoleRules(RoleBase):
     def get(self, id):
         """Returns the rules for a specific role
         ---
-        description: >
+        description: >-
             View the rules that belong to a specific role.\n\n
 
             ### Permission Table\n
@@ -326,31 +324,37 @@ class RoleRules(RoleBase):
             |--|--|--|--|--|--|\n
             |Role|Global|View|❌|❌|View any role rule|\n
             |Role|Organization|View|❌|❌|View all role rules in your
-            organization|\n
+            organization|\n\n
+
+            Accessible for: `user`\n\n
+
+            Results can be paginated by using the parameter `page`. The
+            pagination metadata can be included using `include=metadata`, note
+            that this will put the actual data in an envelope.
 
         parameters:
-        - in: path
-          name: id
-          schema:
-            type: integer
-          minimum: 1
-          description: Role id
-          required: true
-        - in: query
-          name: include
-          schema:
-            type: string (can be multiple)
-          description: what to include ('task', 'metadata')
-        - in: query
-          name: page
-          schema:
-            type: integer
-          description: page number for pagination
-        - in: query
-          name: per_page
-          schema:
-            type: integer
-          description: number of items per page
+            - in: path
+              name: id
+              schema:
+                type: integer
+              minimum: 1
+              description: Role id
+              required: true
+            - in: query
+              name: include
+              schema:
+                 type: string (can be multiple)
+              description: what to include ('task', 'metadata')
+            - in: query
+              name: page
+              schema:
+                type: integer
+              description: page number for pagination
+            - in: query
+              name: per_page
+              schema:
+                type: integer
+              description: number of items per page
 
         responses:
             200:
@@ -364,7 +368,6 @@ class RoleRules(RoleBase):
             - bearerAuth: []
 
         tags: ["Role"]
-
         """
         role = db.Role.get(id)
 
