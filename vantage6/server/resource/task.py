@@ -9,6 +9,7 @@ from pathlib import Path
 
 from vantage6.common.globals import STRING_ENCODING
 from vantage6.server import db
+from vantage6.server.model.base import Database
 from vantage6.server.permission import (
     Scope as S,
     PermissionManager,
@@ -20,8 +21,7 @@ from vantage6.server.resource._schema import (
     TaskIncludedSchema,
     TaskResultSchema
 )
-
-
+from vantage6.server.resource.pagination import paginate, paginate_list
 
 
 module_name = __name__.split('.')[-1]
@@ -33,7 +33,7 @@ def setup(api, api_base, services):
     log.info(f'Setting up "{path}" and subdirectories')
 
     api.add_resource(
-        Task,
+        Tasks,
         path,
         endpoint='task_without_id',
         methods=('GET', 'POST'),
@@ -75,8 +75,7 @@ def permissions(permissions: PermissionManager):
         description=(
             "create a new task for collaborations in which your organization "
             "participates with"
-        )
-    )
+        ))
 
     add(scope=S.GLOBAL, operation=P.DELETE,
         description="delete a task")
@@ -84,74 +83,109 @@ def permissions(permissions: PermissionManager):
         description=(
             "delete a task from a collaboration in which your organization "
             "participates with"
-        )
-    )
+        ))
 
 
 # ------------------------------------------------------------------------------
 # Resources / API's
 # ------------------------------------------------------------------------------
-class Task(ServicesResources):
-    """Resource for /api/task"""
+task_schema = TaskSchema()
+task_result_schema = TaskIncludedSchema()
+task_result_schema2 = TaskResultSchema()
 
-    task_schema = TaskSchema()
-    task_result_schema = TaskIncludedSchema()
+
+class TaskBase(ServicesResources):
 
     def __init__(self, socketio, mail, api, permissions):
         super().__init__(socketio, mail, api, permissions)
         self.r = getattr(self.permissions, module_name)
 
-    @only_for(["user", "node", "container"])
-    @swag_from(str(Path(r"swagger/get_task_with_id.yaml")),
-               endpoint='task_with_id')
-    @swag_from(str(Path(r"swagger/get_task_without_id.yaml")),
-               endpoint='task_without_id')
-    def get(self, id=None):
-        """List tasks"""
-        task = db.Task.get(id)
-        if not task:
-            return {"msg": f"task id={id} is not found"}, HTTPStatus.NOT_FOUND
 
-        # determine the organization to which the auth belongs
-        if g.container:
-            auth_org_id = g.container["organization_id"]
-        elif g.node:
-            auth_org_id = g.node.organization_id
-        else:  # g.user:
-            auth_org_id = g.user.organization_id
-        auth_org = db.Organization.get(auth_org_id)
+class Tasks(TaskBase):
 
-        # obtain schema
-        schema = self.task_result_schema \
-            if request.args.get('include') == 'results' else self.task_schema
+    @only_for(['user', 'node', 'container'])
+    def get(self):
+        """List tasks
+        ---
+        description: >-
+            Returns a list of tasks.\n\n
 
-        # check permissions, and return result
-        if id:
-            if not self.r.v_glo.can():
-                org_ids = [org.id for org in task.collaboration.organizations]
-                if not (self.r.v_org.can() and auth_org.id in org_ids):
-                    return {'msg': 'You lack the permission to do that!'}, \
-                        HTTPStatus.UNAUTHORIZED
-            return schema.dump(task, many=False).data, HTTPStatus.OK
-        else:
-            if self.r.v_glo.can():
-                return schema.dump(task, many=True).data, HTTPStatus.OK
-            elif self.r.v_org.can():
-                filtered = filter(
-                    lambda t: auth_org in t.collaboration.organizations,
-                    filter(lambda t: bool(t.collaboration), task)
-                )
-                return schema.dump(filtered, many=True).data, HTTPStatus.OK
+            ### Permission Table\n
+            |Rule name|Scope|Operation|Node|Container|Description|\n
+            |--|--|--|--|--|--|\n
+            |Task|Global|View|❌|❌|View any task|\n
+            |Task|Organization|View|✅|✅|View any task in your organization|
+            \n\n
+
+            Accessible for: `user`, `node` and `container`.\n\n
+
+            Results can be paginated by using the parameter `page`. The
+            pagination metadata can be included using `include=metadata`, note
+            that this will put the actual data in an envelope.
+
+
+        parameters:
+            - in: query
+              name: include
+              schema:
+                type: string
+              description: what to include in the output ('metadata')
+            - in: query
+              name: page
+              schema:
+                type: integer
+              description: page number for pagination
+            - in: query
+              name: per_page
+              schema:
+                type: integer
+              description: number of items per page
+
+        responses:
+            200:
+                description: Ok
+            404:
+                description: Task not found
+            401:
+                description: Unauthorized or missing permission
+
+        security:
+            - bearerAuth: []
+
+        tags: ["Task"]
+        """
+        q = Database().Session.query(db.Task)
+
+        # obtain organization id
+        auth_org_id = self.obtain_organization_id()
+
+        # check permissions and apply filter if neccassary
+        if not self.r.v_glo.can():
+            if self.r.v_org.can():
+                q = q.join(db.Collaboration).join(db.Organization)\
+                    .filter(db.Collaboration.organizations.any(id=auth_org_id))
             else:
                 return {'msg': 'You lack the permission to do that!'}, \
                     HTTPStatus.UNAUTHORIZED
+
+        # paginate tasks
+        page = paginate(q, request)
+
+        # serialization schemas
+        includes = request.args.getlist('include')
+        schema = task_result_schema if 'result' in includes else task_schema
+        dump = schema.meta_dump if 'metadata' in includes else \
+            schema.default_dump
+
+        return dump(page), HTTPStatus.OK, page.headers
 
     @only_for(["user", "container"])
     @swag_from(str(Path(r"swagger/post_task_without_id.yaml")),
                endpoint='task_without_id')
     def post(self):
         """Create a new Task."""
-        # TODO https://marshmallow.readthedocs.io/en/stable/examples.html#quotes-api-flask-sqlalchemy
+        # TODO https://marshmallow.readthedocs.io/en/stable/examples.html
+        # #quotes-api-flask-sqlalchemy
         data = request.get_json()
         collaboration_id = data.get('collaboration_id')
         collaboration = db.Collaboration.get(collaboration_id)
@@ -168,14 +202,14 @@ class Task(ServicesResources):
         # also ensures us that the organizations exist
         if not set(org_ids).issubset(db_ids):
             return {"msg": (
-                f"At least one of the supplied organizations in not within "
-                f"the collaboration."
+                "At least one of the supplied organizations in not within "
+                "the collaboration."
             )}, HTTPStatus.BAD_REQUEST
 
         # figure out the initiator organization of the task
         if g.user:
             initiator = g.user.organization
-        else: #g.container:
+        else:  # g.container:
             initiator = db.Node.get(g.container["node_id"]).organization
 
         # Create the new task in the database
@@ -275,7 +309,65 @@ class Task(ServicesResources):
         log.debug(f" name: '{task.name}'")
         log.debug(f" image: '{task.image}'")
 
-        return self.task_schema.dump(task, many=False).data, HTTPStatus.CREATED
+        return task_schema.dump(task, many=False).data, HTTPStatus.CREATED
+
+
+class Task(TaskBase):
+    """Resource for /api/task"""
+
+    @only_for(["user", "node", "container"])
+    @swag_from(str(Path(r"swagger/get_task_with_id.yaml")),
+               endpoint='task_with_id')
+    def get(self, id):
+        """List tasks"""
+        task = db.Task.get(id)
+        if not task:
+            return {"msg": f"task id={id} is not found"}, HTTPStatus.NOT_FOUND
+
+        # determine the organization to which the auth belongs
+        auth_org = self.obtain_auth_organization()
+
+        # obtain schema
+        schema = task_result_schema if request.args.get('include') == \
+            'results' else task_schema
+
+        # check permissions
+        if not self.r.v_glo.can():
+            org_ids = [org.id for org in task.collaboration.organizations]
+            if not (self.r.v_org.can() and auth_org.id in org_ids):
+                return {'msg': 'You lack the permission to do that!'}, \
+                    HTTPStatus.UNAUTHORIZED
+
+        return schema.dump(task, many=False).data, HTTPStatus.OK
+
+    @only_for(['user'])
+    @swag_from(str(Path(r"swagger/delete_task_with_id.yaml")),
+               endpoint='task_with_id')
+    def delete(self, id):
+        """Deletes a task and their results."""
+
+        task = db.Task.get(id)
+        if not task:
+            return {"msg": f"task id={id} not found"}, HTTPStatus.NOT_FOUND
+
+        # validate permissions
+        if not self.r.d_glo.can():
+            orgs =  task.collaboration.organizations
+            if not (self.r.d_org.can() and g.user.organization in orgs):
+                return {'msg': 'You lack the permission to do that!'}, \
+                    HTTPStatus.UNAUTHORIZED
+
+        # retrieve results that belong to this task
+        log.info(f'Removing task id={task.id}')
+        for result in task.results:
+            log.info(f" Removing result id={result.id}")
+            result.delete()
+
+        # permissions ok, delete...
+        task.delete()
+
+        return {"msg": f"task id={id} and its result successfully deleted"}, \
+            HTTPStatus.OK
 
     @staticmethod
     def __verify_container_permissions(container, image, collaboration_id):
@@ -311,59 +403,77 @@ class Task(ServicesResources):
 
         return True
 
-    @only_for(['user'])
-    @swag_from(str(Path(r"swagger/delete_task_with_id.yaml")),
-               endpoint='task_with_id')
-    def delete(self, id):
-        """Deletes a task and their results."""
-
-        task = db.Task.get(id)
-        if not task:
-            return {"msg": f"task id={id} not found"}, HTTPStatus.NOT_FOUND
-
-        # validate permissions
-        if not self.r.d_glo.can():
-            orgs =  task.collaboration.organizations
-            if not (self.r.d_org.can() and g.user.organization in orgs):
-                return {'msg': 'You lack the permission to do that!'}, \
-                    HTTPStatus.UNAUTHORIZED
-
-        # retrieve results that belong to this task
-        log.info(f'Removing task id={task.id}')
-        for result in task.results:
-            log.info(f" Removing result id={result.id}")
-            result.delete()
-
-        # permissions ok, delete...
-        task.delete()
-
-        return {"msg": f"task id={id} and its result successfully deleted"}, \
-            HTTPStatus.OK
-
 
 class TaskResult(ServicesResources):
     """Resource for /api/task/<int:id>/result"""
-
-    task_result_schema = TaskResultSchema()
 
     def __init__(self, socketio, mail, api, permissions):
         super().__init__(socketio, mail, api, permissions)
         self.r = getattr(self.permissions, "result")
 
     @only_for(['user', 'container'])
-    @swag_from(str(Path(r"swagger/get_task_result.yaml")),
-               endpoint='task_result')
     def get(self, id):
-        """Return results for task."""
+        """Return the results for a specific task
+        ---
+        description: >-
+            Returns the task result specified by the id.\n\n
+
+            ### Permission Table\n
+            |Rule name|Scope|Operation|Node|Container|Description|\n
+            |--|--|--|--|--|--|\n
+            |Result|Global|View|❌|❌|View any result|\n
+            |Result|Organization|View|✅|✅|View results for the
+            collaborations in which your organization participates with|\n\n
+
+            Accessible for: `user` and `container`.\n\n
+
+            Results can be paginated by using the parameter `page`. The
+            pagination metadata can be included using `include=metadata`, note
+            that this will put the actual data in an envelope.
+
+        parameters:
+            - in: path
+              name: id
+              schema:
+                type: integer
+              description: task id
+              required: true
+            - in: query
+              name: include
+              schema:
+                type: string
+              description: what to include in the output ('metadata')
+            - in: query
+              name: page
+              schema:
+                type: integer
+              description: page number for pagination
+            - in: query
+              name: per_page
+              schema:
+                type: integer
+              description: number of items per page
+
+        responses:
+            200:
+                description: Ok
+            404:
+                description: Task not found
+            401:
+                description: Unauthorized or missing permission
+
+        security:
+            - bearerAuth: []
+
+        tags: ["Task"]
+        """
         task = db.Task.get(id)
         if not task:
             return {"msg": f"task id={id} not found"}, \
                 HTTPStatus.NOT_FOUND
 
-        if g.user:
-            org = g.user.organization
-        else:
-            org = db.Organization.get(g.container['organization_id'])
+        # obtain organization model
+        org = self.obtain_auth_organization()
 
         if not self.r.v_glo.can():
             c_orgs = task.collaboration.organizations
@@ -371,5 +481,12 @@ class TaskResult(ServicesResources):
                 return {'msg': 'You lack the permission to do that!'}, \
                     HTTPStatus.UNAUTHORIZED
 
-        return self.task_result_schema.dump(task.results, many=True).data, \
-            HTTPStatus.OK
+        # pagination
+        page = paginate_list(task.results, request)
+
+        # model serialization
+        dump = task_result_schema2.meta_dump if 'metadata' in \
+            request.args.getlist('include') else \
+            task_result_schema2.default_dump
+
+        return dump(page), HTTPStatus.OK, page.headers
