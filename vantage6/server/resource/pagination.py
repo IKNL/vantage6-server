@@ -120,5 +120,3 @@ def paginate_list(items: list, request):
     items = items[beginning:ending]
 
     return Pagination(items, page_id, per_page, total, request)
-
-

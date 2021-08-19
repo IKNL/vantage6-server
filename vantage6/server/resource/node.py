@@ -83,8 +83,6 @@ class NodeBase(ServicesResources):
 class Nodes(NodeBase):
 
     @with_user_or_node
-    @swag_from(str(Path(r"swagger/get_node_without_id.yaml")),
-               endpoint='node_without_id')
     def get(self):
         """Returns a list of nodes
         ---
