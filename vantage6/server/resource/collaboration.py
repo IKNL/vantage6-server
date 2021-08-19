@@ -9,7 +9,7 @@ from pathlib import Path
 
 from vantage6.server import db
 from vantage6.server.model.base import Database
-from vantage6.server.resource.pagination import paginate
+from vantage6.server.resource.pagination import paginate, paginate_list
 from vantage6.server.permission import (
     Scope as S,
     Operation as P,
@@ -131,8 +131,8 @@ class Collaborations(CollaborationBase):
             |Rulename|Scope|Operation|Node|Container|Description|\n
             | -- | -- | -- | -- | -- | -- |\n
             |Collaboration|Global|View|❌|❌|All collaborations|\n
-            | Collaboration  | Organization | View | ✅ | ✅ | Collaborations
-            in which your organization participates |\n\n
+            |Collaboration|Organization|View|✅|✅|Collaborations in which
+            your organization participates |\n\n
 
             Accessable as: `user`.'\n\n
 
@@ -323,27 +323,83 @@ class CollaborationOrganization(ServicesResources):
     @swag_from(str(Path(r"swagger/get_collaboration_organization.yaml")),
                endpoint='collaboration_with_id_organization')
     def get(self, id):
-        """Return organizations for a specific collaboration."""
-        collaboration = db.Collaboration.get(id)
-        if not collaboration:
-            return {"msg": f"collaboration having collaboration_id={id} can "
-                    "not be found"}, HTTPStatus.NOT_FOUND
+        """Returns organizations that participate in the collaboration
+        ---
+        description: >-
+            Returns a list of all organizations that belong to the specified
+            collaboration.
 
-        if g.user:
-            auth_org_id = g.user.organization.id
-        elif g.node:
-            auth_org_id = g.node.organization.id
-        else:  # g.container
-            auth_org_id = g.container["organization_id"]
+            ### Permission Table\n
+            |Rulename|Scope|Operation|Node|Container|Description|\n
+            |--|--|--|--|--|--|\n
+            |Collaboration|Global|View|❌|❌|All collaborations|\n
+            |Collaboration|Organization|View|✅|✅|Collaborations
+            in which your organization participates|\n\n
 
+            Accessable as: `user`, `node` and `container`.'\n\n
+
+            Results can be paginated by using the parameter `page`. The
+            pagination metadata can be included using `include=metadata`, note
+            that this will put the actual data in an envelope.
+
+        parameters:
+            - in: path
+              name: id
+              schema:
+                type: integer
+              description: collaboration id
+              required: true
+            - in: query
+              name: include
+              schema:
+                type: string
+              description: what to include in the output ('metadata')
+            - in: query
+              name: page
+              schema:
+                type: integer
+              description: page number for pagination
+            - in: query
+              name: per_page
+              schema:
+                type: integer
+              description: number of items per page
+
+        responses:
+            200:
+                description: Ok
+            404:
+                description: Collaboration specified by id does not exists
+            401:
+                description: Unauthorized
+
+        security:
+            - bearerAuth: []
+
+        tags: ["Collaboration"]
+        """
+        col = db.Collaboration.get(id)
+        if not col:
+            return {'msg': f'collaboration (id={id}) can not be found'},\
+                HTTPStatus.NOT_FOUND
+
+        # obtain organization id from auth
+        auth_org = self.obtain_auth_organization()
+
+        # check permission
         if not self.r.v_glo.can():
-            org_ids = [org.id for org in collaboration.organizations]
-            if not (self.r.v_org.can() and auth_org_id in org_ids):
+            if not (self.r.v_org.can() and auth_org in col.organizations):
                 return {'msg': 'You lack the permission to do that!'}, \
                     HTTPStatus.UNAUTHORIZED
 
-        return org_schema.dump(collaboration.organizations, many=True).data, \
-            HTTPStatus.OK
+        # paginate organizations
+        page = paginate_list(col.organizations, request)
+
+        # model serialization
+        dump = org_schema.meta_dump if 'metadata' in \
+            request.args.getlist('include') else org_schema.default_dump
+
+        return dump(page), HTTPStatus.OK, page.headers
 
     @with_user
     @swag_from(
