@@ -352,7 +352,7 @@ class Task(TaskBase):
 
         # validate permissions
         if not self.r.d_glo.can():
-            orgs =  task.collaboration.organizations
+            orgs = task.collaboration.organizations
             if not (self.r.d_org.can() and g.user.organization in orgs):
                 return {'msg': 'You lack the permission to do that!'}, \
                     HTTPStatus.UNAUTHORIZED

@@ -125,7 +125,7 @@ class Collaborations(CollaborationBase):
         description: >-
             Returns a list of collaborations. Depending on your permission, all
             collaborations are shown or only collaborations in which your
-            organization participates. See the table bellow.\n
+            organization participates. See the table bellow.\n\n
 
             ### Permission Table\n
             |Rulename|Scope|Operation|Node|Container|Description|\n
@@ -346,8 +346,10 @@ class CollaborationOrganization(ServicesResources):
             HTTPStatus.OK
 
     @with_user
-    @swag_from(str(Path(r"swagger/post_collaboration_with_id_organization.yaml")),
-               endpoint='collaboration_with_id_organization')
+    @swag_from(
+        str(Path(r"swagger/post_collaboration_with_id_organization.yaml")),
+        endpoint='collaboration_with_id_organization'
+    )
     def post(self, id):
         """Add an organizations to a specific collaboration."""
         # get collaboration to which te organization should be added
@@ -356,7 +358,7 @@ class CollaborationOrganization(ServicesResources):
             return {"msg": f"collaboration having collaboration_id={id} can "
                     "not be found"}, HTTPStatus.NOT_FOUND
 
-         # verify permissions
+        # verify permissions
         if not self.r.e_glo.can():
             return {'msg': 'You lack the permission to do that!'}, \
                 HTTPStatus.UNAUTHORIZED
@@ -501,10 +503,8 @@ class CollaborationTask(ServicesResources):
             return {"msg": f"collaboration id={id} can not be found"},\
                 HTTPStatus.NOT_FOUND
 
-        if g.user:
-            auth_org_id = g.user.organization.id
-        else: #g.node:
-            auth_org_id = g.node.organization.id
+        # obtain auth's organization id
+        auth_org_id = self.obtain_organization_id()
 
         if not self.r.v_glo.can():
             org_ids = [org.id for org in collaboration.organizations]
