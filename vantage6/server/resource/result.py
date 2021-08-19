@@ -229,7 +229,6 @@ class Results(ResultBase):
                     HTTPStatus.UNAUTHORIZED
 
         # query the DB and paginate
-        # q = q.order_by(db_Result.id)
         page = paginate(query=q, request=request)
 
         # serialization of the models
