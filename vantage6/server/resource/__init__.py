@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import datetime
+from http import HTTPStatus
 import logging
-import math
 
 from functools import wraps
 
@@ -24,6 +24,19 @@ class ServicesResources(Resource):
         self.mail = mail
         self.api = api
         self.permissions = permissions
+
+    @staticmethod
+    def is_included(field):
+        return field in request.args.getlist('include')
+
+    def dump(self, page, schema):
+        if self.is_included('metadata'):
+            return schema.meta_dump(page)
+        else:
+            return schema.default_dump(page)
+
+    def response(self, page, schema):
+        return self.dump(page, schema), HTTPStatus.OK, page.headers
 
     @staticmethod
     def obtain_auth():

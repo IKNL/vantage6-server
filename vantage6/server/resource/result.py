@@ -19,7 +19,7 @@ from vantage6.server.resource import (
     parse_datetime,
     ServicesResources
 )
-from vantage6.server.resource.pagination import paginate
+from vantage6.server.resource.pagination import Pagination
 from vantage6.server.resource._schema import (
     ResultSchema,
     ResultTaskIncludedSchema
@@ -100,10 +100,10 @@ class Results(ResultBase):
 
             ### Permission Table\n
             |Rulename|Scope|Operation|Node|Container|Description|\n
-            | -- | -- | -- | -- | -- | -- |\n
-            | Result | Global | View | ❌ | ❌ | View any result |\n
-            | Result | Organization | View | ✅ | ✅ | View the results of your
-            organizations collaborations |\n\n
+            |--|--|--|--|--|--|\n
+            |Result|Global|View|❌|❌|View any result|\n
+            |Result|Organization|View|✅|✅|View the results of your
+            organizations collaborations|\n\n
 
             Accesible as: `node` , `user` and `container`.\n\n
 
@@ -229,16 +229,12 @@ class Results(ResultBase):
                     HTTPStatus.UNAUTHORIZED
 
         # query the DB and paginate
-        page = paginate(query=q, request=request)
+        page = Pagination.from_query(query=q, request=request)
 
         # serialization of the models
-        s = result_inc_schema if 'task' in args.getlist('include') else \
-            result_schema
+        s = result_inc_schema if self.is_included('task') else result_schema
 
-        dump = s.meta_dump if 'metadata' in args.getlist('include') else \
-            s.default_dump
-
-        return dump(page), HTTPStatus.OK, page.headers
+        return self.response(page, s)
 
 
 class Result(ResultBase):

@@ -9,7 +9,7 @@ from pathlib import Path
 from vantage6.common import logger_name
 from vantage6.server import db
 from vantage6.server.model.base import Database
-from vantage6.server.resource.pagination import paginate
+from vantage6.server.resource.pagination import Pagination
 from vantage6.server.permission import (
     Scope as S,
     Operation as P,
@@ -188,13 +188,10 @@ class Organizations(OrganizationBase):
                 HTTPStatus.UNAUTHORIZED
 
         # paginate the results
-        page = paginate(query=q, request=request)
+        page = Pagination.from_query(query=q, request=request)
 
         # serialization of DB model
-        dump = org_schema.meta_dump if 'metadata' in \
-            request.args.getlist('include') else org_schema.default_dump
-
-        return dump(page), HTTPStatus.OK, page.headers
+        return self.response(page, org_schema)
 
     @only_for(["user"])
     @swag_from(str(Path(r"swagger/post_organization_without_id.yaml")),

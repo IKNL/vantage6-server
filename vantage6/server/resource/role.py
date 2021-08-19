@@ -20,7 +20,7 @@ from vantage6.server.permission import (
 )
 from vantage6.server.model.rule import Operation, Scope
 from vantage6.server.resource._schema import RoleSchema, RuleSchema
-from vantage6.server.resource.pagination import paginate, paginate_list
+from vantage6.server.resource.pagination import Pagination
 
 module_name = logger_name(__name__)
 log = logging.getLogger(module_name)
@@ -163,12 +163,9 @@ class Roles(RoleBase):
                 return {"msg": "You do not have permission to view this."}, \
                     HTTPStatus.UNAUTHORIZED
 
-        page = paginate(query=q, request=request)
+        page = Pagination.from_query(query=q, request=request)
 
-        dump = role_schema.meta_dump if 'metadata' in \
-            request.args.getlist('include') else role_schema.default_dump
-
-        return dump(page), HTTPStatus.OK, page.headers
+        return self.response(page, role_schema)
 
     @with_user
     @swag_from(str(Path(r"swagger/post_role_without_id.yaml")),
@@ -384,13 +381,9 @@ class RoleRules(RoleBase):
                     HTTPStatus.UNAUTHORIZED
 
         # paginate elements
-        page = paginate_list(role.rules, request)
+        page = Pagination.from_list(role.rules, request)
 
-        # model serialization
-        dump = rule_schema.meta_dump if 'metadata' in \
-            request.args.getlist('include') else rule_schema.default_dump
-
-        return dump(page), HTTPStatus.OK, page.headers
+        return self.response(page, rule_schema)
 
     @with_user
     @swag_from(str(Path(r"swagger/post_role_rule_with_id.yaml")),

@@ -11,7 +11,7 @@ from flask_restful import reqparse
 
 from vantage6.server.resource import with_user_or_node, with_user
 from vantage6.server.resource import ServicesResources
-from vantage6.server.resource.pagination import paginate
+from vantage6.server.resource.pagination import Pagination
 from vantage6.server.permission import (Scope as S,
                                         Operation as P, PermissionManager)
 from vantage6.server.model.base import Database
@@ -143,13 +143,10 @@ class Nodes(NodeBase):
                     HTTPStatus.UNAUTHORIZED
 
         # paginate results
-        page = paginate(q, request)
+        page = Pagination.from_query(q, request)
 
         # model serialization
-        dump = node_schema.meta_dump if 'metadata' in \
-            request.args.getlist('include') else node_schema.default_dump
-
-        return dump(page), HTTPStatus.OK, page.headers
+        return self.response(page, node_schema)
 
     @with_user
     @swag_from(str(Path(r"swagger/post_node_without_node_id.yaml")),

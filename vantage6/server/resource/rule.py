@@ -12,7 +12,7 @@ from vantage6.common import logger_name
 from vantage6.server import db
 from vantage6.server.model.base import Database
 from vantage6.server.resource._schema import RuleSchema
-from vantage6.server.resource.pagination import paginate
+from vantage6.server.resource.pagination import Pagination
 
 
 module_name = logger_name(__name__)
@@ -91,13 +91,10 @@ class Rules(ServicesResources):
         q = Database().Session.query(db.Rule)
 
         # paginate results
-        page = paginate(q, request)
+        page = Pagination.from_query(q, request)
 
         # model serialization
-        dump = rule_schema.meta_dump if 'metadata' in \
-            request.args.getlist('include') else rule_schema.default_dump
-
-        return dump(page), HTTPStatus.OK, page.headers
+        return self.response(page, rule_schema)
 
 
 class Rule(ServicesResources):

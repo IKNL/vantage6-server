@@ -68,55 +68,53 @@ class Pagination:
 
         return links
 
+    @classmethod
+    def from_query(cls, query: sqlalchemy.orm.query, request):
+        # We remove the ordering of the query since it doesn't matter for
+        # getting a count and might have performance implications as discussed
+        # on this Flask-SqlAlchemy issue
+        # https://github.com/mitsuhiko/flask-sqlalchemy/issues/100
+        total = query.distinct().order_by(None).count()
 
-def paginate(query: sqlalchemy.orm.query, request):
+        # check if pagination is desired, else return all records
+        page_id = request.args.get('page')
+        if not page_id:
+            page_id = 1
+            per_page = total
+        else:
+            page_id = int(page_id)
+            per_page = int(request.args.get('per_page', 10))
 
-    # We remove the ordering of the query since it doesn't matter for getting
-    # a count and might have performance implications as discussed on this
-    # Flask-SqlAlchemy issue
-    # https://github.com/mitsuhiko/flask-sqlalchemy/issues/100
-    total = query.distinct().order_by(None).count()
+        if page_id <= 0:
+            raise AttributeError('page needs to be >= 1')
+        if per_page <= 0:
+            raise AttributeError('per_page needs to be >= 1')
 
-    # check if pagination is desired, else return all records
-    page_id = request.args.get('page')
-    if not page_id:
-        page_id = 1
-        per_page = total
-    else:
-        page_id = int(page_id)
-        per_page = int(request.args.get('per_page', 10))
+        items = query.distinct().limit(per_page).offset((page_id-1)*per_page)\
+            .all()
 
-    if page_id <= 0:
-        raise AttributeError('page needs to be >= 1')
-    if per_page <= 0:
-        raise AttributeError('per_page needs to be >= 1')
+        return cls(items, page_id, per_page, total, request)
 
-    items = query.distinct().limit(per_page).offset((page_id - 1) * per_page)\
-        .all()
+    @classmethod
+    def from_list(cls, items: list, request):
+        page_id = request.args.get('page')
+        total = len(items)
+        if not page_id:
+            page_id = 1
+            per_page = total
+        else:
+            page_id = int(page_id)
+            per_page = int(request.args.get('per_page', 10))
 
-    return Pagination(items, page_id, per_page, total, request)
+        if page_id <= 0:
+            raise AttributeError('page needs to be >= 1')
+        if per_page <= 0:
+            raise AttributeError('per_page needs to be >= 1')
 
+        beginning = (page_id - 1) * per_page
+        ending = page_id * per_page
+        if ending > total:
+            ending = total
+        items = items[beginning:ending]
 
-def paginate_list(items: list, request):
-
-    page_id = request.args.get('page')
-    total = len(items)
-    if not page_id:
-        page_id = 1
-        per_page = total
-    else:
-        page_id = int(page_id)
-        per_page = int(request.args.get('per_page', 10))
-
-    if page_id <= 0:
-        raise AttributeError('page needs to be >= 1')
-    if per_page <= 0:
-        raise AttributeError('per_page needs to be >= 1')
-
-    beginning = (page_id - 1) * per_page
-    ending = page_id * per_page
-    if ending > total:
-        ending = total
-    items = items[beginning:ending]
-
-    return Pagination(items, page_id, per_page, total, request)
+        return cls(items, page_id, per_page, total, request)

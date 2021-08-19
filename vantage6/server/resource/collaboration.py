@@ -9,7 +9,7 @@ from pathlib import Path
 
 from vantage6.server import db
 from vantage6.server.model.base import Database
-from vantage6.server.resource.pagination import paginate, paginate_list
+from vantage6.server.resource.pagination import Pagination
 from vantage6.server.permission import (
     Scope as S,
     Operation as P,
@@ -182,14 +182,10 @@ class Collaborations(CollaborationBase):
                 return {'msg': 'You lack the permission to do that!'}
 
         # paginate the results
-        page = paginate(query=q, request=request)
+        page = Pagination.from_query(query=q, request=request)
 
         # serialize models, include metadata if requested
-        dump = collaboration_schema.meta_dump \
-            if 'metadata' in request.args.getlist('include') \
-            else collaboration_schema.default_dump
-
-        return dump(page), HTTPStatus.OK, page.headers
+        return self.response(page, collaboration_schema)
 
     @with_user
     @swag_from(str(Path(r"swagger/post_collaboration_without_id.yaml")),
@@ -389,13 +385,10 @@ class CollaborationOrganization(ServicesResources):
                     HTTPStatus.UNAUTHORIZED
 
         # paginate organizations
-        page = paginate_list(col.organizations, request)
+        page = Pagination.from_list(col.organizations, request)
 
         # model serialization
-        dump = org_schema.meta_dump if 'metadata' in \
-            request.args.getlist('include') else org_schema.default_dump
-
-        return dump(page), HTTPStatus.OK, page.headers
+        return self.response(page, org_schema)
 
     @with_user
     @swag_from(
@@ -532,13 +525,10 @@ class CollaborationNode(ServicesResources):
                     HTTPStatus.UNAUTHORIZED
 
         # paginate nodes
-        page = paginate_list(col.nodes, request)
+        page = Pagination.from_list(col.nodes, request)
 
         # model serialization
-        dump = node_schema.meta_dump if 'metadata' in \
-            request.args.getlist('include') else node_schema.default_dump
-
-        return dump(page), HTTPStatus.OK, page.headers
+        return self.response(page, node_schema)
 
     @with_user
     @swag_from(str(Path(r"swagger/post_collaboration_with_id_node.yaml")),
@@ -675,10 +665,7 @@ class CollaborationTask(ServicesResources):
                     HTTPStatus.UNAUTHORIZED
 
         # paginate tasks
-        page = paginate_list(col.tasks, request)
+        page = Pagination.from_list(col.tasks, request)
 
         # model serialization
-        dump = tasks_schema.meta_dump if 'metadata' in \
-            request.args.getlist('include') else tasks_schema.default_dump
-
-        return dump(page), HTTPStatus.OK, page.headers
+        return self.response(page, tasks_schema)

@@ -21,7 +21,7 @@ from vantage6.server.resource._schema import (
     TaskIncludedSchema,
     TaskResultSchema
 )
-from vantage6.server.resource.pagination import paginate, paginate_list
+from vantage6.server.resource.pagination import Pagination
 
 
 module_name = __name__.split('.')[-1]
@@ -169,15 +169,13 @@ class Tasks(TaskBase):
                     HTTPStatus.UNAUTHORIZED
 
         # paginate tasks
-        page = paginate(q, request)
+        page = Pagination.from_query(q, request)
 
-        # serialization schemas
-        includes = request.args.getlist('include')
-        schema = task_result_schema if 'result' in includes else task_schema
-        dump = schema.meta_dump if 'metadata' in includes else \
-            schema.default_dump
+        # serialization schema
+        schema = task_result_schema if self.is_included('result') else\
+            task_schema
 
-        return dump(page), HTTPStatus.OK, page.headers
+        return self.response(page, schema)
 
     @only_for(["user", "container"])
     @swag_from(str(Path(r"swagger/post_task_without_id.yaml")),
@@ -482,11 +480,7 @@ class TaskResult(ServicesResources):
                     HTTPStatus.UNAUTHORIZED
 
         # pagination
-        page = paginate_list(task.results, request)
+        page = Pagination.from_list(task.results, request)
 
         # model serialization
-        dump = task_result_schema2.meta_dump if 'metadata' in \
-            request.args.getlist('include') else \
-            task_result_schema2.default_dump
-
-        return dump(page), HTTPStatus.OK, page.headers
+        return self.response(page, task_result_schema2)
