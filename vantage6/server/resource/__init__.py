@@ -28,7 +28,7 @@ class ServicesResources(Resource):
     @staticmethod
     def obtain_auth():
         if g.user:
-            return g.auth
+            return g.user
         if g.node:
             return g.node
         if g.container:
@@ -46,6 +46,7 @@ class ServicesResources(Resource):
     @staticmethod
     def obtain_auth_organization():
         return db.Organization.get(ServicesResources.obtain_organization_id())
+
 
 # ------------------------------------------------------------------------------
 # Helper functions/decoraters ...
