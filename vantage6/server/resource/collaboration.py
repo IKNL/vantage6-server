@@ -282,6 +282,9 @@ class Collaboration(CollaborationBase):
                 for org_id in data['organization_ids']
                 if db.Organization.get(org_id)
             ]
+        if 'encrypted' in data:
+            collaboration.encrypted = data['encrypted']
+
         collaboration.save()
 
         return collaboration_schema.dump(collaboration, many=False).data, \
