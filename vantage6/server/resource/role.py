@@ -56,7 +56,7 @@ def setup(api, api_base, services):
         RoleRules,
         path + '/<int:id>/rule/<int:rule_id>',
         endpoint='role_rule_with_id',
-        methods=('DELETE', 'POST'),
+        methods=('GET', 'DELETE', 'POST'),
         resource_class_kwargs=services
     )
 
