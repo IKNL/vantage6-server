@@ -80,7 +80,7 @@ class Pagination:
         page_id = request.args.get('page')
         if not page_id:
             page_id = 1
-            per_page = total
+            per_page = total or 1
         else:
             page_id = int(page_id)
             per_page = int(request.args.get('per_page', 10))

@@ -206,7 +206,7 @@ class Tasks(TaskBase):
         for param in ['initiator_id', 'collaboration_id', 'image',
                       'parent_id', 'run_id']:
             if param in request.args:
-                q = q.filter_by(getattr(db.Task, param) == request.args[param])
+                q = q.filter(getattr(db.Task, param) == request.args[param])
 
         if 'name' in request.args:
             q = q.filter(db.Task.name.like(request.args['name']))
