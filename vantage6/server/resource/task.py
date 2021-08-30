@@ -126,6 +126,40 @@ class Tasks(TaskBase):
 
         parameters:
             - in: query
+              name: initiator_id
+              schema:
+                type: int
+              description: The organization id of the origin of the request
+            - in: query
+              name: collaboration_id
+              schema:
+                type: int
+              description: The collaboration id to which the task belongs
+            - in: query
+              name: image
+              schema:
+                type: str
+              description: (Docker) image name which is used in the task
+            - in: query
+              name: parent_id
+              schema:
+                type: int
+              description: The id of the parent task
+            - in: query
+              name: run_id
+              schema:
+                type: int
+              description: The run id that belongs to the task
+            - in: query
+              name: name
+              schema:
+                type: str
+              description: >-
+                Name to match with a LIKE operator. \n
+                * The percent sign (%) represents zero, one, or multiple
+                characters\n
+                * underscore sign (_) represents one, single character
+            - in: query
               name: include
               schema:
                 type: string
@@ -168,6 +202,15 @@ class Tasks(TaskBase):
                 return {'msg': 'You lack the permission to do that!'}, \
                     HTTPStatus.UNAUTHORIZED
 
+        # filter based on arguments
+        for param in ['initiator_id', 'collaboration_id', 'image',
+                      'parent_id', 'run_id']:
+            if param in request.args:
+                q = q.filter_by(getattr(db.Task, param) == request.args[param])
+
+        if 'name' in request.args:
+            q = q.filter(db.Task.name.like(request.args['name']))
+
         # paginate tasks
         page = Pagination.from_query(q, request)
 
@@ -182,8 +225,6 @@ class Tasks(TaskBase):
                endpoint='task_without_id')
     def post(self):
         """Create a new Task."""
-        # TODO https://marshmallow.readthedocs.io/en/stable/examples.html
-        # #quotes-api-flask-sqlalchemy
         data = request.get_json()
         collaboration_id = data.get('collaboration_id')
         collaboration = db.Collaboration.get(collaboration_id)
