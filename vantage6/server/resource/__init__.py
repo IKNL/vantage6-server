@@ -18,6 +18,11 @@ log = logging.getLogger(logger_name(__name__))
 
 
 class ServicesResources(Resource):
+    """Flask resource base class.
+
+        Adds functionality like mail, socket, permissions and the api itself.
+        Also adds common helper functions.
+    """
 
     def __init__(self, socketio, mail, api, permissions):
         self.socketio = socketio
@@ -27,19 +32,23 @@ class ServicesResources(Resource):
 
     @staticmethod
     def is_included(field):
+        """Check that a `field` is included in the request argument context."""
         return field in request.args.getlist('include')
 
     def dump(self, page, schema):
+        """Dump based on the request context (to paginate or not)"""
         if self.is_included('metadata'):
             return schema.meta_dump(page)
         else:
             return schema.default_dump(page)
 
     def response(self, page, schema):
+        """Prepare a valid HTTP OK response from a page object"""
         return self.dump(page, schema), HTTPStatus.OK, page.headers
 
     @staticmethod
     def obtain_auth():
+        """Obtain a authenticable object or dict in the case of a container."""
         if g.user:
             return g.user
         if g.node:
@@ -49,6 +58,7 @@ class ServicesResources(Resource):
 
     @staticmethod
     def obtain_organization_id():
+        """Obtain the organization id from the auth that is logged in."""
         if g.user:
             return g.user.organization.id
         elif g.node:
@@ -58,6 +68,7 @@ class ServicesResources(Resource):
 
     @staticmethod
     def obtain_auth_organization():
+        """Obtain the organization model from the auth that is logged in."""
         return db.Organization.get(ServicesResources.obtain_organization_id())
 
 
