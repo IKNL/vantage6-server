@@ -102,7 +102,7 @@ class Nodes(NodeBase):
 
             Results can be paginated by using the parameter `page`. The
             pagination metadata can be included using `include=metadata`, note
-            that this will put the actual data in an envelope.
+            that this will put the actual data in an envelope.\n\n
 
         parameters:
             - in: query
