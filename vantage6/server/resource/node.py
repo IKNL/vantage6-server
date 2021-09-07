@@ -159,15 +159,20 @@ class Node(ServicesResources):
                         HTTPStatus.BAD_REQUEST
 
         # Ok we're good to go!
+        api_key = str(uuid.uuid1())
         node = db.Node(
             name=f"{organization.name} - {collaboration.name} Node",
             collaboration=collaboration,
             organization=organization,
-            api_key=str(uuid.uuid1())
+            api_key=api_key
         )
         node.save()
 
-        return self.node_schema.dump(node).data, HTTPStatus.CREATED  # 201
+        # Return the node information to the user. Manually return the api_key
+        # to the user as the hashed key is not returned
+        node_json = self.node_schema.dump(node).data
+        node_json['api_key'] = api_key
+        return node_json, HTTPStatus.CREATED  # 201
 
     @with_user
     @swag_from(str(Path(r"swagger/delete_node_with_id.yaml")),

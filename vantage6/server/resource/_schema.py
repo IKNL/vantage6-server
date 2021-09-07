@@ -202,6 +202,7 @@ class NodeSchema(HATEOASModelSchema):
 
     class Meta:
         model = db.Node
+        exclude = ('api_key',)
 
 
 # ------------------------------------------------------------------------------
