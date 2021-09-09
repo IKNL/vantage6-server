@@ -7,6 +7,7 @@ import json
 
 from flasgger import Swagger
 from flask import Flask, make_response, current_app
+from flask.globals import g
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 from flask_marshmallow import Marshmallow
@@ -14,8 +15,10 @@ from flask_restful import Api
 from flask_mail import Mail
 from flask_principal import Principal, Identity, identity_changed
 from flask_socketio import SocketIO
+from sqlalchemy.orm.session import close_all_sessions
 
 from vantage6.server import db
+from vantage6.server.model.base import Database
 from vantage6.server.resource._schema import HATEOASModelSchema
 from vantage6.common import logger_name
 from vantage6.server.permission import RuleNeed, PermissionManager
@@ -100,7 +103,7 @@ class ServerApp:
         logging.getLogger("socketIO-client").setLevel(logging.WARNING)
         logging.getLogger("engineio.server").setLevel(logging.WARNING)
         logging.getLogger("socketio.server").setLevel(logging.WARNING)
-
+        logging.getLogger('sqlalchemy.engine').setLevel(logging.DEBUG)
 
     def configure_flask(self):
         """All flask config settings should go here."""
@@ -150,6 +153,25 @@ class ServerApp:
             "support@vantage6.ai"
         )
         self.app.config["MAIL_PASSWORD"] = mail_config.get("password", "")
+
+        # before request
+        @self.app.before_request
+        def get_db_session():
+            log.debug('create db session')
+            g.session = Database().Session
+
+        @self.app.after_request
+        def remove_db_session(response):
+            g.session.remove()
+            log.debug('db session removed')
+            return response
+
+        @self.app.errorhandler(Exception)
+        def remove_db_session(error):
+            log.debug(error)
+            g.session.remove()
+            close_all_sessions()
+            return {'msg': 'encoutered a server error'}, 500
 
     def configure_api(self):
         """"Define global API output."""

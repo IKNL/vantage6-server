@@ -9,8 +9,6 @@ from sqlalchemy import create_engine
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.orm import scoped_session, sessionmaker
 from sqlalchemy.orm.exc import NoResultFound
-from sqlalchemy.exc import InvalidRequestError
-from sqlalchemy.util.langhelpers import NoneType
 
 from vantage6.common import logger_name, Singleton
 
@@ -65,7 +63,8 @@ class Database(metaclass=Singleton):
         if URL.host is None and URL.database:
             os.makedirs(os.path.dirname(URL.database), exist_ok=True)
 
-        self.engine = create_engine(uri, convert_unicode=True)
+        self.engine = create_engine(uri, convert_unicode=True, echo=True,
+                                    pool_pre_ping=True)
 
         # we can call Session() to create a new unique session
         # (self.Session is a session factory). Its also possible to use
@@ -75,7 +74,7 @@ class Database(metaclass=Singleton):
         self.Session = scoped_session(sessionmaker(autocommit=False,
                                                    autoflush=False))
 
-         # short hand to obtain a object-session.
+        # short hand to obtain a object-session.
         self.object_session = Session.object_session
 
         self.Session.configure(bind=self.engine)
@@ -99,64 +98,84 @@ class ModelBase:
     def get(cls, id_=None):
 
         session = Database().Session
-        # session.begin()
+
         result = None
-        try:
-            if id_ is None:
-                result = session.query(cls).all()
-            else:
-                try:
-                    result = session.query(cls).filter_by(id=id_).one()
-                except NoResultFound:
-                    result = None
-        except InvalidRequestError as e:
-            log.warning('Exception on getting!')
-            log.debug(e)
-            # session.invalidate()
-            session.rollback()
+
+        if id_ is None:
+            result = session.query(cls).all()
+        else:
+            try:
+                result = session.query(cls).filter_by(id=id_).one()
+            except NoResultFound:
+                result = None
+
+        session.remove()
+
+        # try:
+        #     if id_ is None:
+        #         result = session.query(cls).all()
+        #     else:
+        #         try:
+        #             result = session.query(cls).filter_by(id=id_).one()
+        #         except NoResultFound:
+        #             result = None
+        # except (InvalidRequestError, Exception) as e:
+        #     log.warning('Exception on getting!')
+        #     log.debug(e)
+        #     # session.invalidate()
+        #     session.rollback()
         # finally:
-        #     session.close()
+        #     session.remove()
 
         return result
 
-    def save(self):
+    def save(self) -> None:
 
         # new objects do not have an `id`
         session = Database().object_session(self) if self.id else \
             Database().Session
-        # session.begin()
-        try:
-            if not self.id:
-                session.add(self)
-            session.commit()
 
-        except InvalidRequestError as e:
-            log.error("Exception when saving!")
-            log.debug(e)
-            # session.invalidate()
-            session.rollback()
+        if not self.id:
+            session.add(self)
+
+        session.commit()
+
+        session.remove()
+        # try:
+        #     if not self.id:
+        #         session.add(self)
+        #     session.commit()
+
+        # except (InvalidRequestError, Exception) as e:
+        #     log.error("Exception when saving!")
+        #     log.debug(e)
+        #     # session.invalidate()
+        #     session.rollback()
 
         # finally:
-        #     session.close()
+        #     session.remove()
 
+    def delete(self) -> None:
 
-    def delete(self):
         session = Database().object_session(self) if self.id else \
             Database().Session
 
-        # session.begin()
+        session.delete(self)
+        session.commit()
+        session.remove()
 
-        try:
-            session.delete(self)
-            session.commit()
+        # try:
+        #     session.delete(self)
+        #     session.commit()
 
-        except InvalidRequestError as e:
-            log.info("Exception when deleting!")
-            log.debug(e)
-            # session.invalidate()
-            session.rollback()
+        # except (InvalidRequestError, Exception) as e:
+        #     log.info("Exception when deleting!")
+        #     log.debug(e)
+        #     # session.invalidate()
+        #     session.rollback()
 
         # finally:
-        #     session.close()
+        #     session.remove()
+
 
 Base = declarative_base(cls=ModelBase)

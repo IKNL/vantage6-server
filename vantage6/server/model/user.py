@@ -1,5 +1,6 @@
 import bcrypt
 
+from flask.globals import g
 from sqlalchemy import Column, String, Integer, ForeignKey, exists
 from sqlalchemy.orm import relationship, validates
 
@@ -66,8 +67,13 @@ class User(Authenticatable):
 
     @classmethod
     def get_by_username(cls, username):
+        if g:
+            session = g.session
+        else:
+            session = Database().Session
         session = Database().Session
         return session.query(cls).filter_by(username=username).one()
+
 
     @classmethod
     def get_by_email(cls, email):
@@ -81,8 +87,14 @@ class User(Authenticatable):
 
     @classmethod
     def username_exists(cls, username):
-        session = Database().Session
-        return session.query(exists().where(cls.username == username)).scalar()
+
+        return g.session.query(exists().where(cls.username == username))\
+            .scalar()
+        # except Exception:
+            # session.invalidate()
+            # session.rollback()
+        # finally:
+        #     session.close()
 
     @classmethod
     def exists(cls, field, value):
