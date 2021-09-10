@@ -160,16 +160,18 @@ class Organizations(OrganizationBase):
         auth_org = self.obtain_auth_organization()
 
         # query
-        q = Database().Session.query(db.Organization)
+        q = g.session.query(db.Organization)
 
         # filter de list of organizations based on the scope
         if self.r.v_glo.can():
             # view all organizations
+            log.debug('glo')
             pass
 
         elif self.r.v_col.can():
             # obtain collaborations your organization participates in
-            collabs = Database().Session.query(db.Collaboration).filter(
+            log.debug('col')
+            collabs = g.session.query(db.Collaboration).filter(
                 db.Collaboration.organizations.any(id=auth_org.id)
             ).all()
 
@@ -182,11 +184,12 @@ class Organizations(OrganizationBase):
             q = q.filter(db.Organization.id.in_(org_ids))
 
         elif self.r.v_org.can():
+            log.debug('org')
             q = q.filter(db.Organization.id == auth_org.id)
         else:
             return {'msg': 'You lack the permission to do that!'}, \
                 HTTPStatus.UNAUTHORIZED
-
+        log.debug(q.all())
         # paginate the results
         page = Pagination.from_query(query=q, request=request)
 

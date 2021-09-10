@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import datetime
 from uuid import uuid1
+from flask.globals import g
 import yaml
 import unittest
 import logging
@@ -16,7 +17,7 @@ from werkzeug.utils import cached_property
 from vantage6.common import logger_name
 from vantage6.common.globals import APPNAME
 from vantage6.server.globals import PACAKAGE_FOLDER
-from vantage6.server import ServerApp
+from vantage6.server import ServerApp, db
 from vantage6.server.model import (Rule, Role, Organization, User, Node,
                                    Collaboration, Task, Result)
 from vantage6.server.model.rule import Scope, Operation
@@ -55,6 +56,7 @@ class TestResources(unittest.TestCase):
             "unittest_config.yaml")
 
         server = ServerApp(ctx)
+        cls.server = server
 
         file_ = str(PACAKAGE_FOLDER / APPNAME / "server" / "_data" /
                     "unittest_fixtures.yaml")
@@ -85,13 +87,16 @@ class TestResources(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
-        Database().close()
+        Database().clear_data()
+        # pass
 
     def login(self, type_='root'):
-        tokens = self.app.post(
-            '/api/token/user',
-            json=self.credentials[type_]
-        ).json
+        with self.server.app.test_client() as c:
+
+            tokens = c.post(
+                '/api/token/user',
+                json=self.credentials[type_]
+            ).json
         headers = {
             'Authorization': 'Bearer {}'.format(tokens['access_token'])
         }
@@ -101,6 +106,7 @@ class TestResources(unittest.TestCase):
 
         if not organization:
             organization = Organization(name="some-organization")
+            organization.save()
 
         # user details
         username = str(uuid.uuid1())
@@ -1670,14 +1676,18 @@ class TestResources(unittest.TestCase):
     def test_add_collaboration_node_permissions(self):
 
         org = Organization()
+        org.save()
         col = Collaboration(organizations=[org])
+        col.save()
         node = Node(organization=org)
         node.save()
 
         # try non-existant collaboration
         headers = self.create_user_and_login()
+
         results = self.app.post('/api/collaboration/-1/node', headers=headers,
                                 json={'id': node.id})
+        print(results.json)
         self.assertEqual(results.status_code, HTTPStatus.NOT_FOUND)
 
         # try without proper permissions

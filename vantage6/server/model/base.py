@@ -1,16 +1,18 @@
 import logging
 import os
 
-from sqlalchemy import Column, Integer, inspect
+from flask.globals import g
+
+from sqlalchemy import Column, Integer
 from sqlalchemy.orm.session import Session
 from sqlalchemy.ext.declarative import declarative_base, declared_attr
-
 from sqlalchemy import create_engine
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.orm import scoped_session, sessionmaker
 from sqlalchemy.orm.exc import NoResultFound
 
 from vantage6.common import logger_name, Singleton
+from vantage6.server import db
 
 
 module_name = logger_name(__name__)
@@ -32,11 +34,18 @@ class Database(metaclass=Singleton):
 
     def drop_all(self):
         if self.allow_drop_all:
+            print(id(Base))
             Base.metadata.drop_all(bind=self.engine)
             # Base.metadata.create_all(bind=self.engine)
             # self.Session.close()
         else:
             log.error("Cannot drop tables, configuration does not allow this!")
+
+    def clear_data(self):
+        meta = Base.metadata
+        session = DatabaseSessionManager.get_session()
+        for table in reversed(meta.sorted_tables):
+            session.execute(table.delete())
 
     def close(self):
         self.drop_all()
@@ -63,7 +72,7 @@ class Database(metaclass=Singleton):
         if URL.host is None and URL.database:
             os.makedirs(os.path.dirname(URL.database), exist_ok=True)
 
-        self.engine = create_engine(uri, convert_unicode=True, echo=True,
+        self.engine = create_engine(uri, convert_unicode=True,
                                     pool_pre_ping=True)
 
         # we can call Session() to create a new unique session
@@ -74,13 +83,67 @@ class Database(metaclass=Singleton):
         self.Session = scoped_session(sessionmaker(autocommit=False,
                                                    autoflush=False))
 
+        self.alt_Session = scoped_session(
+            sessionmaker(autocommit=False, autoflush=False))
+
         # short hand to obtain a object-session.
         self.object_session = Session.object_session
 
         self.Session.configure(bind=self.engine)
+        self.alt_Session.configure(bind=self.engine)
 
         Base.metadata.create_all(bind=self.engine)
         log.info("Database initialized!")
+
+
+class DatabaseSessionManager:
+    """Class to manage DB sessions from.
+
+    There are 2 different ways a session can be obtained. Either a session used
+    within a request or a session used else where (e.g. iPython or within the
+    application itself).
+
+    In case of the flask-request the session is stored in the flask global `g`.
+    So that it can be accessed in every endpoint.
+
+    In all other cases the session is attached to the db module.
+    """
+
+    @staticmethod
+    def in_flask_request():
+        return True if g else False
+
+    @staticmethod
+    def get_session():
+        if DatabaseSessionManager.in_flask_request():
+            return g.session
+        else:
+            # log.critical('Obtaining non flask session')
+            if not db.session:
+                DatabaseSessionManager.new_session()
+                # log.critical('WE NEED TO MAKE A NEW ONE')
+            return db.session
+
+    @staticmethod
+    def new_session():
+        # log.critical('Create new DB session')
+        if DatabaseSessionManager.in_flask_request():
+            # log.critical("FLASK session")
+            g.session = Database().Session
+        else:
+            db.session = Database().alt_Session
+
+    @staticmethod
+    def clear_session():
+        log.debug('Clearing DB session')
+        if DatabaseSessionManager.in_flask_request():
+            # print(f"gsession: {g.session}")
+            g.session.remove()
+        else:
+            if db.session:
+                db.session.remove()
+            else:
+                log.error('No DB session found to clear!')
 
 
 class ModelBase:
@@ -97,7 +160,7 @@ class ModelBase:
     @classmethod
     def get(cls, id_=None):
 
-        session = Database().Session
+        session = DatabaseSessionManager.get_session()
 
         result = None
 
@@ -109,73 +172,24 @@ class ModelBase:
             except NoResultFound:
                 result = None
 
-        session.remove()
-
-        # try:
-        #     if id_ is None:
-        #         result = session.query(cls).all()
-        #     else:
-        #         try:
-        #             result = session.query(cls).filter_by(id=id_).one()
-        #         except NoResultFound:
-        #             result = None
-        # except (InvalidRequestError, Exception) as e:
-        #     log.warning('Exception on getting!')
-        #     log.debug(e)
-        #     # session.invalidate()
-        #     session.rollback()
-        # finally:
-        #     session.remove()
-
         return result
 
     def save(self) -> None:
 
-        # new objects do not have an `id`
-        session = Database().object_session(self) if self.id else \
-            Database().Session
+        session = DatabaseSessionManager.get_session()
 
+        # new objects do not have an `id`
         if not self.id:
             session.add(self)
 
         session.commit()
 
-        session.remove()
-        # try:
-        #     if not self.id:
-        #         session.add(self)
-        #     session.commit()
-
-        # except (InvalidRequestError, Exception) as e:
-        #     log.error("Exception when saving!")
-        #     log.debug(e)
-        #     # session.invalidate()
-        #     session.rollback()
-
-        # finally:
-        #     session.remove()
-
     def delete(self) -> None:
 
-        session = Database().object_session(self) if self.id else \
-            Database().Session
+        session = DatabaseSessionManager.get_session()
 
         session.delete(self)
         session.commit()
-        session.remove()
-
-        # try:
-        #     session.delete(self)
-        #     session.commit()
-
-        # except (InvalidRequestError, Exception) as e:
-        #     log.info("Exception when deleting!")
-        #     log.debug(e)
-        #     # session.invalidate()
-        #     session.rollback()
-
-        # finally:
-        #     session.remove()
 
 
 Base = declarative_base(cls=ModelBase)
