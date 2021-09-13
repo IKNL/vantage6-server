@@ -34,7 +34,6 @@ class Database(metaclass=Singleton):
 
     def drop_all(self):
         if self.allow_drop_all:
-            print(id(Base))
             Base.metadata.drop_all(bind=self.engine)
             # Base.metadata.create_all(bind=self.engine)
             # self.Session.close()
@@ -46,6 +45,8 @@ class Database(metaclass=Singleton):
         session = DatabaseSessionManager.get_session()
         for table in reversed(meta.sorted_tables):
             session.execute(table.delete())
+        session.commit()
+        DatabaseSessionManager.clear_session()
 
     def close(self):
         self.drop_all()
@@ -80,7 +81,8 @@ class Database(metaclass=Singleton):
         # Session (without calling it first). The scoped session is scoped to
         # the local thread the process is running in.
         self.session_a = scoped_session(sessionmaker(autocommit=False,
-                                                   autoflush=False))
+                                                     autoflush=False))
+        self.session_a.configure(bind=self.engine)
 
         # because the Session factory returns the same session (if one exists
         # already) we need a second factory to create an alternative session.
@@ -89,13 +91,11 @@ class Database(metaclass=Singleton):
         # `post request`. If we would use the same session for other tasks, the
         # session can be terminated unexpectedly.
         self.session_b = scoped_session(sessionmaker(autocommit=False,
-                                                       autoflush=False))
+                                                     autoflush=False))
+        self.session_b.configure(bind=self.engine)
 
         # short hand to obtain a object-session.
         self.object_session = Session.object_session
-
-        self.Session.configure(bind=self.engine)
-        self.alt_Session.configure(bind=self.engine)
 
         Base.metadata.create_all(bind=self.engine)
         log.info("Database initialized!")
@@ -121,20 +121,27 @@ class DatabaseSessionManager:
     @staticmethod
     def get_session():
         if DatabaseSessionManager.in_flask_request():
+            # print(f'g.session={g.session}')
             return g.session
         else:
             # log.critical('Obtaining non flask session')
             if not db.session:
                 DatabaseSessionManager.new_session()
                 # log.critical('WE NEED TO MAKE A NEW ONE')
+
+            # print(f'db.session {db.session}')
             return db.session
 
     @staticmethod
     def new_session():
         # log.critical('Create new DB session')
         if DatabaseSessionManager.in_flask_request():
-            # log.critical("FLASK session")
+
             g.session = Database().session_a
+            log.debug(f"FLASK session {g.session}")
+
+            # g.session.refresh()
+            # print('new flask session')
         else:
             db.session = Database().session_b
 
@@ -144,11 +151,14 @@ class DatabaseSessionManager:
         if DatabaseSessionManager.in_flask_request():
             # print(f"gsession: {g.session}")
             g.session.remove()
+            # g.session = None
         else:
             if db.session:
                 db.session.remove()
+                db.session = None
             else:
-                log.error('No DB session found to clear!')
+                print('No DB session found to clear!')
+
 
 
 class ModelBase:

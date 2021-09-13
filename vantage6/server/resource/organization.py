@@ -8,7 +8,6 @@ from pathlib import Path
 
 from vantage6.common import logger_name
 from vantage6.server import db
-from vantage6.server.model.base import Database
 from vantage6.server.resource.pagination import Pagination
 from vantage6.server.permission import (
     Scope as S,
@@ -39,7 +38,7 @@ def setup(api, api_base, services):
         Organizations,
         path,
         endpoint='organization_without_id',
-        methods=('GET',),
+        methods=('GET', 'POST'),
         resource_class_kwargs=services
      )
     api.add_resource(

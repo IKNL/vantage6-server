@@ -212,7 +212,7 @@ class Users(UserBase):
         )
         user.save()
 
-        return self.user_schema.dump(user).data, HTTPStatus.CREATED
+        return user_schema.dump(user).data, HTTPStatus.CREATED
 
 
 class User(UserBase):
@@ -364,7 +364,7 @@ class User(UserBase):
             log.error(e)
             user.session.rollback()
 
-        return self.user_schema.dump(user).data, HTTPStatus.OK
+        return user_schema.dump(user).data, HTTPStatus.OK
 
     @with_user
     @swag_from(str(Path(r"swagger/delete_user_with_id.yaml")),
