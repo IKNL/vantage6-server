@@ -39,3 +39,4 @@ jobs:
     - name: Test with coveralls
       run: |
         coverage run --source=vantage6 --omit="utest.py" ./utest.py
+        coveralls
