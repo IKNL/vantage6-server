@@ -9,7 +9,7 @@ from pathlib import Path
 
 from vantage6.common.globals import STRING_ENCODING
 from vantage6.server import db
-from vantage6.server.model.base import Database
+from vantage6.server.model.base import DatabaseSessionManager
 from vantage6.server.permission import (
     Scope as S,
     PermissionManager,
@@ -188,7 +188,7 @@ class Tasks(TaskBase):
 
         tags: ["Task"]
         """
-        q = Database().Session.query(db.Task)
+        q = DatabaseSessionManager.get_session().query(db.Task)
 
         # obtain organization id
         auth_org_id = self.obtain_organization_id()
@@ -350,6 +350,40 @@ class Tasks(TaskBase):
 
         return task_schema.dump(task, many=False).data, HTTPStatus.CREATED
 
+    @staticmethod
+    def __verify_container_permissions(container, image, collaboration_id):
+        """Validates that the container is allowed to create the task."""
+
+        # check that the image is allowed
+        # if container["image"] != task.image:
+        # FIXME why?
+        if not image.endswith(container["image"]):
+            log.warning((f"Container from node={container['node_id']} "
+                        f"attempts to post a task using illegal image!?"))
+            log.warning(f"  task image: {image}")
+            log.warning(f"  container image: {container['image']}")
+            return False
+
+        # check master task is not completed yet
+        if db.Task.get(container["task_id"]).complete:
+            log.warning(
+                f"Container from node={container['node_id']} "
+                f"attempts to start sub-task for a completed "
+                f"task={container['task_id']}"
+            )
+            return False
+
+        # check that node id is indeed part of the collaboration
+        if not container["collaboration_id"] == collaboration_id:
+            log.warning(
+                f"Container attempts to create a task outside "
+                f"collaboration_id={container['collaboration_id']} in "
+                f"collaboration_id={collaboration_id}!"
+            )
+            return False
+
+        return True
+
 
 class Task(TaskBase):
     """Resource for /api/task"""
@@ -407,40 +441,6 @@ class Task(TaskBase):
 
         return {"msg": f"task id={id} and its result successfully deleted"}, \
             HTTPStatus.OK
-
-    @staticmethod
-    def __verify_container_permissions(container, image, collaboration_id):
-        """Validates that the container is allowed to create the task."""
-
-        # check that the image is allowed
-        # if container["image"] != task.image:
-        # FIXME why?
-        if not image.endswith(container["image"]):
-            log.warning((f"Container from node={container['node_id']} "
-                         f"attempts to post a task using illegal image!?"))
-            log.warning(f"  task image: {image}")
-            log.warning(f"  container image: {container['image']}")
-            return False
-
-        # check master task is not completed yet
-        if db.Task.get(container["task_id"]).complete:
-            log.warning(
-                f"Container from node={container['node_id']} "
-                f"attempts to start sub-task for a completed "
-                f"task={container['task_id']}"
-            )
-            return False
-
-        # check that node id is indeed part of the collaboration
-        if not container["collaboration_id"] == collaboration_id:
-            log.warning(
-                f"Container attempts to create a task outside "
-                f"collaboration_id={container['collaboration_id']} in "
-                f"collaboration_id={collaboration_id}!"
-            )
-            return False
-
-        return True
 
 
 class TaskResult(ServicesResources):

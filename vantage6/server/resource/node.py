@@ -14,7 +14,7 @@ from vantage6.server.resource import ServicesResources
 from vantage6.server.resource.pagination import Pagination
 from vantage6.server.permission import (Scope as S,
                                         Operation as P, PermissionManager)
-from vantage6.server.model.base import Database
+from vantage6.server.model.base import DatabaseSessionManager
 from vantage6.server import db
 from vantage6.server.resource._schema import NodeSchema
 
@@ -132,7 +132,7 @@ class Nodes(NodeBase):
 
         tags: ["Node"]
         """
-        q = Database().Session.query(db.Node)
+        q = DatabaseSessionManager.get_session().query(db.Node)
         auth_org_id = self.obtain_organization_id()
         if not self.r.v_glo.can():
             if self.r.v_org.can():

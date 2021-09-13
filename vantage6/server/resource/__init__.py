@@ -66,10 +66,10 @@ class ServicesResources(Resource):
         else:
             return g.container["organization_id"]
 
-    @staticmethod
-    def obtain_auth_organization():
+    @classmethod
+    def obtain_auth_organization(cls):
         """Obtain the organization model from the auth that is logged in."""
-        return db.Organization.get(ServicesResources.obtain_organization_id())
+        return db.Organization.get(cls.obtain_organization_id())
 
 
 # ------------------------------------------------------------------------------

@@ -8,7 +8,7 @@ from flasgger import swag_from
 from pathlib import Path
 from flask_restful import reqparse
 from vantage6.server import db
-from vantage6.server.model.base import Database
+from vantage6.server.model.base import DatabaseSessionManager
 
 from vantage6.server.resource import (
     with_user,
@@ -151,7 +151,7 @@ class Roles(RoleBase):
 
         tags: ["Role"]
         """
-        q = Database().Session.query(db.Role)
+        q = DatabaseSessionManager.get_session().query(db.Role)
 
         auth_org_id = self.obtain_organization_id()
 
