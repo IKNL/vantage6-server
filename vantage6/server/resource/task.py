@@ -9,7 +9,7 @@ from pathlib import Path
 
 from vantage6.common.globals import STRING_ENCODING
 from vantage6.server import db
-from vantage6.server.model.base import Database
+from vantage6.server.model.base import DatabaseSessionManager
 from vantage6.server.permission import (
     Scope as S,
     PermissionManager,
@@ -188,7 +188,7 @@ class Tasks(TaskBase):
 
         tags: ["Task"]
         """
-        q = Database().Session.query(db.Task)
+        q = DatabaseSessionManager.get_session().query(db.Task)
 
         # obtain organization id
         auth_org_id = self.obtain_organization_id()

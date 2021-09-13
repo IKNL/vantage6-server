@@ -8,7 +8,7 @@ from flask_principal import Permission, PermissionDenied
 from vantage6.server.globals import RESOURCES
 from vantage6.server.model.role import Role
 from vantage6.server.model.rule import Rule, Operation, Scope
-from vantage6.server.model.base import Database
+from vantage6.server.model.base import DatabaseSessionManager
 from vantage6.common import logger_name
 
 module_name = logger_name(__name__)
@@ -165,7 +165,8 @@ class PermissionManager:
         Boolean
             Whenever this rule exists in the database or not
         """
-        return Database().Session.query(Rule).filter_by(
+        session = DatabaseSessionManager.get_session()
+        return session.query(Rule).filter_by(
             name=name,
             operation=operation,
             scope=scope

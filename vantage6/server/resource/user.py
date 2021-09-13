@@ -10,7 +10,7 @@ from pathlib import Path
 
 from vantage6.common import logger_name
 from vantage6.server import db
-from vantage6.server.model.base import Database
+from vantage6.server.model.base import DatabaseSessionManager
 from vantage6.server.permission import (
     Scope as S,
     Operation as P,
@@ -119,7 +119,7 @@ class Users(UserBase):
 
         tags: ["User"]
         """
-        q = Database().Session.query(db.User)
+        q = DatabaseSessionManager.get_session().query(db.User)
 
         # check permissions and apply filter if neccassary
         if not self.r.v_glo.can():

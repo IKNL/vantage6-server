@@ -8,7 +8,7 @@ from http import HTTPStatus
 from pathlib import Path
 
 from vantage6.server import db
-from vantage6.server.model.base import Database
+from vantage6.server.model.base import DatabaseSessionManager
 from vantage6.server.resource.pagination import Pagination
 from vantage6.server.permission import (
     Scope as S,
@@ -171,7 +171,7 @@ class Collaborations(CollaborationBase):
 
         # obtain organization from authenticated
         auth_org_id = self.obtain_organization_id()
-        q = Database().Session.query(db.Collaboration)
+        q = DatabaseSessionManager.get_session().query(db.Collaboration)
 
         # filter based on permissions
         if not self.r.v_glo.can():

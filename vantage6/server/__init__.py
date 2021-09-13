@@ -201,7 +201,6 @@ class ServerApp:
             DatabaseSessionManager.clear_session()
             return {'msg': f'Error: {error}'}, 500
 
-
     def configure_api(self):
         """"Define global API output."""
 

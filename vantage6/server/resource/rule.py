@@ -10,7 +10,7 @@ from vantage6.server.resource import (
 )
 from vantage6.common import logger_name
 from vantage6.server import db
-from vantage6.server.model.base import Database
+from vantage6.server.model.base import DatabaseSessionManager
 from vantage6.server.resource._schema import RuleSchema
 from vantage6.server.resource.pagination import Pagination
 
@@ -88,7 +88,7 @@ class Rules(ServicesResources):
 
         tags: ["Rule"]
         """
-        q = Database().Session.query(db.Rule)
+        q = DatabaseSessionManager.get_session().query(db.Rule)
 
         # paginate results
         page = Pagination.from_query(q, request)

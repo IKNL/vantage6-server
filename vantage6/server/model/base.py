@@ -75,16 +75,21 @@ class Database(metaclass=Singleton):
         self.engine = create_engine(uri, convert_unicode=True,
                                     pool_pre_ping=True)
 
-        # we can call Session() to create a new unique session
-        # (self.Session is a session factory). Its also possible to use
-        # implicit access to the Session (without calling it first). The
-        # scoped session is scoped to the local thread the process is running
-        # in.
-        self.Session = scoped_session(sessionmaker(autocommit=False,
+        # we can call Session() to create a session, if a session already
+        # exists it will return the same session (!). implicit access to the
+        # Session (without calling it first). The scoped session is scoped to
+        # the local thread the process is running in.
+        self.session_a = scoped_session(sessionmaker(autocommit=False,
                                                    autoflush=False))
 
-        self.alt_Session = scoped_session(
-            sessionmaker(autocommit=False, autoflush=False))
+        # because the Session factory returns the same session (if one exists
+        # already) we need a second factory to create an alternative session.
+        # this is required if we use both the flask session and the iPython.
+        # Because the flask session is managed by the hooks `pre_request` and
+        # `post request`. If we would use the same session for other tasks, the
+        # session can be terminated unexpectedly.
+        self.session_b = scoped_session(sessionmaker(autocommit=False,
+                                                       autoflush=False))
 
         # short hand to obtain a object-session.
         self.object_session = Session.object_session
@@ -129,9 +134,9 @@ class DatabaseSessionManager:
         # log.critical('Create new DB session')
         if DatabaseSessionManager.in_flask_request():
             # log.critical("FLASK session")
-            g.session = Database().Session
+            g.session = Database().session_a
         else:
-            db.session = Database().alt_Session
+            db.session = Database().session_b
 
     @staticmethod
     def clear_session():
