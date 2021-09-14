@@ -167,7 +167,7 @@ class User(ServicesResources):
                     org = db.Organization.get(data['organization_id'])
                     if not org:
                         return {'msg': "Organization does not exist."}, \
-                            HTTPStatus.UNAUTHORIZED
+                            HTTPStatus.NOT_FOUND
                 else:  # not-root user cant create users for other organization
                     return {'msg': 'You lack the permission to do that!'}, \
                         HTTPStatus.UNAUTHORIZED
@@ -314,7 +314,7 @@ class User(ServicesResources):
                 org = db.Organization.get(data['organization_id'])
                 if not org:
                     return {'msg': 'Organization does not exist.'}, \
-                        HTTPStatus.UNAUTHORIZED
+                        HTTPStatus.NOT_FOUND
                 else:
                     log.warn(
                         f'Running as root and assigning (new) '
