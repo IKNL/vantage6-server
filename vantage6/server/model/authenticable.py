@@ -1,5 +1,6 @@
-from sqlalchemy import Column, String, DateTime
 import bcrypt
+
+from sqlalchemy import Column, String, DateTime
 
 from .base import Base
 

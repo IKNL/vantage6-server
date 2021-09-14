@@ -1,7 +1,7 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, exists
-from sqlalchemy.orm import relationship, validates
-from sqlalchemy.orm.exc import NoResultFound
 import bcrypt
+
+from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy.orm import relationship, validates
 
 from vantage6.server.model.base import Database
 from vantage6.server.model.authenticable import Authenticatable
