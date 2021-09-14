@@ -38,7 +38,7 @@ jobs:
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
     - name: Test with coveralls
       run: |
-        coverage run --source=vantage6 --omit="utest.py","*.html" ./utest.py
+        coverage run --source=vantage6 --omit="utest.py","*.html" -o ./coverage/lcov.info ./utest.py
     - name: Coveralls
       uses: coverallsapp/github-action@v1.1.2
       with:
