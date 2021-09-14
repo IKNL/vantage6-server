@@ -6,6 +6,7 @@ from flask import g, request, url_for
 from http import HTTPStatus
 from flasgger import swag_from
 from pathlib import Path
+from sqlalchemy import desc
 
 from vantage6.common.globals import STRING_ENCODING
 from vantage6.server import db
@@ -211,6 +212,7 @@ class Tasks(TaskBase):
         if 'name' in request.args:
             q = q.filter(db.Task.name.like(request.args['name']))
 
+        q = q.order_by(desc(db.Task.id))
         # paginate tasks
         page = Pagination.from_query(q, request)
 

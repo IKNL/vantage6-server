@@ -5,6 +5,7 @@ from flask import g, request
 from http import HTTPStatus
 from flasgger import swag_from
 from pathlib import Path
+from sqlalchemy import desc
 
 from vantage6.common import logger_name
 from vantage6.server import db
@@ -228,6 +229,7 @@ class Results(ResultBase):
                     HTTPStatus.UNAUTHORIZED
 
         # query the DB and paginate
+        q = q.order_by(desc(db_Result.id))
         page = Pagination.from_query(query=q, request=request)
 
         # serialization of the models
