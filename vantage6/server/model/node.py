@@ -1,9 +1,9 @@
 import bcrypt
 
-from sqlalchemy import Column, Integer, String, ForeignKey
+from vantage6.server.model.base import DatabaseSessionManager
 from sqlalchemy.orm import relationship, validates
+from sqlalchemy import Column, Integer, String, ForeignKey
 
-from vantage6.server.model.base import Database
 from vantage6.server.model.authenticable import Authenticatable
 
 
@@ -44,7 +44,7 @@ class Node(Authenticatable):
 
         Returns None if no Node is associated with api_key.
         """
-        session = Database().Session
+        session = DatabaseSessionManager.get_session()
 
         nodes = session.query(cls).all()
         for node in nodes:
@@ -56,7 +56,7 @@ class Node(Authenticatable):
 
     @classmethod
     def exists(cls, organization_id, collaboration_id):
-        session = Database().Session
+        session = DatabaseSessionManager.get_session()
         return session.query(cls).filter_by(
             organization_id=organization_id,
             collaboration_id=collaboration_id
@@ -65,7 +65,7 @@ class Node(Authenticatable):
     def __repr__(self):
         return (
             "<Node "
-            f"name: {self.name}, "
+            f"{self.id}: '{self.name}', "
             f"organization: {self.organization.name}, "
             f"collaboration: {self.collaboration.name}, "
             f"api_key: {self.api_key} "
