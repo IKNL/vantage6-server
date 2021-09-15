@@ -203,11 +203,11 @@ class Nodes(NodeBase):
 
         # Return the node information to the user. Manually return the api_key
         # to the user as the hashed key is not returned
-        node_json = self.node_schema.dump(node).data
+        node_json = node_schema.dump(node).data
         node_json['api_key'] = api_key
         return node_json, HTTPStatus.CREATED  # 201
 
-      
+
 class Node(NodeBase):
 
     @with_user_or_node
