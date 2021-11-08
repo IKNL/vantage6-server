@@ -150,7 +150,9 @@ class Task(ServicesResources):
     def post(self):
         """Create a new Task."""
         # TODO https://marshmallow.readthedocs.io/en/stable/examples.html#quotes-api-flask-sqlalchemy
+        log.error('------ start POST /task logging -------')
         data = request.get_json()
+        # log.error(f'data = {data}')
         collaboration_id = data.get('collaboration_id')
         collaboration = db.Collaboration.get(collaboration_id)
 
@@ -158,9 +160,13 @@ class Task(ServicesResources):
             return {"msg": f"Collaboration id={collaboration_id} not found!"},\
                    HTTPStatus.NOT_FOUND
 
+        log.error(f'collaboration={collaboration}')
+
         organizations_json_list = data.get('organizations')
         org_ids = [org.get("id") for org in organizations_json_list]
         db_ids = collaboration.get_organization_ids()
+
+        log.error(f'json_orgs={org_ids}, db_orgs={db_ids}')
 
         # Check that all organization ids are within the collaboration, this
         # also ensures us that the organizations exist
@@ -171,10 +177,15 @@ class Task(ServicesResources):
             )}, HTTPStatus.BAD_REQUEST
 
         # figure out the initiator organization of the task
+        log.error(f'g={g}')
         if g.user:
+            log.error(f'g_user={g.user}')
             initiator = g.user.organization
-        else: #g.container:
+        else:  # g.container:
+            log.error(f'g_container={g.container}')
             initiator = db.Node.get(g.container["node_id"]).organization
+
+        log.error(f'initiator={initiator}')
 
         # Create the new task in the database
         image = data.get('image', '')
@@ -195,10 +206,14 @@ class Task(ServicesResources):
                 return {"msg": "Container-token is not valid"}, \
                     HTTPStatus.UNAUTHORIZED
 
+        log.error('Permission check passed')
+
         # permissions ok, create record
         task = db.Task(collaboration=collaboration, name=data.get('name', ''),
                        description=data.get('description', ''), image=image,
                        database=data.get('database', ''), initiator=initiator)
+
+        log.error(f'partial task={task}')
 
         # create run_id. Users can only create top-level -tasks (they will not
         # have sub-tasks). Therefore, always create a new run_id. Tasks created
@@ -213,6 +228,8 @@ class Task(ServicesResources):
 
         # ok commit session...
         task.save()
+        log.error(f'task={task}')
+        log.error('------ stop POST /task logging -------')
 
         # if the 'master'-flag is set to true the (master) task is executed on
         # a node in the collaboration from the organization to which the user

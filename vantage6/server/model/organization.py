@@ -38,7 +38,7 @@ class Organization(Base):
 
     @classmethod
     def get_by_name(cls, name):
-        session = session = DatabaseSessionManager.get_session()
+        session = DatabaseSessionManager.get_session()
         try:
             return session.query(cls).filter_by(name=name).first()
         except NoResultFound:

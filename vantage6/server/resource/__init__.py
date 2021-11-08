@@ -51,17 +51,24 @@ def only_for(types=['user', 'node', 'container']):
             # do some specific stuff per identity
             g.user = g.container = g.node = None
 
+            log.warning(f'g.type={g.type}')
+            log.warning(f'g.auth={g.user}/{g.container}/{g.node}')
+
             if g.type == 'user':
+                log.warning('-> user')
                 user = get_and_update_authenticatable_info(identity)
                 g.user = user
+                log.warning(user)
                 assert g.user.type == g.type
 
             elif g.type == 'node':
+                log.warning('-> node')
                 node = get_and_update_authenticatable_info(identity)
                 g.node = node
                 assert g.node.type == g.type
 
             elif g.type == 'container':
+                log.warning('-> container')
                 g.container = identity
 
             else:

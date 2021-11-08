@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from datetime import time
 import logging
 
 from flask.globals import g
@@ -50,6 +51,7 @@ class Health(ServicesResources):
         db_ok = False
         try:
             g.session.execute('SELECT 1')
+            time.sleep(5)
             db_ok = True
         except Exception as e:
             log.error("DB not responding")

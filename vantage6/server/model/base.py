@@ -42,7 +42,8 @@ class Database(metaclass=Singleton):
     def close(self):
         self.drop_all()
         self.engine = None
-        self.Session = None
+        self.session_a = None
+        self.session_b = None
         self.object_session = None
         self.allow_drop_all = False
         self.URI = None
@@ -78,10 +79,12 @@ class Database(metaclass=Singleton):
         # we can call Session() to create a session, if a session already
         # exists it will return the same session (!). implicit access to the
         # Session (without calling it first). The scoped session is scoped to
-        # the local thread the process is running in.
-        self.session_a = scoped_session(sessionmaker(autocommit=False,
-                                                     autoflush=False))
-        self.session_a.configure(bind=self.engine)
+        # the local thread the process is running in. We need a scoped session
+        # as SQL Alchemy does not permit to have the same objects open in
+        # multiple transactions.
+        self.session_a = scoped_session(
+            sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
+        )
 
         # because the Session factory returns the same session (if one exists
         # already) we need a second factory to create an alternative session.
@@ -89,9 +92,9 @@ class Database(metaclass=Singleton):
         # Because the flask session is managed by the hooks `pre_request` and
         # `post request`. If we would use the same session for other tasks, the
         # session can be terminated unexpectedly.
-        self.session_b = scoped_session(sessionmaker(autocommit=False,
-                                                     autoflush=False))
-        self.session_b.configure(bind=self.engine)
+        self.session_b = scoped_session(
+            sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
+        )
 
         # short hand to obtain a object-session.
         self.object_session = Session.object_session
@@ -133,22 +136,14 @@ class DatabaseSessionManager:
 
     @staticmethod
     def new_session():
-        # log.critical('Create new DB session')
         if DatabaseSessionManager.in_flask_request():
-
             g.session = Database().session_a
-            #log.debug(f"FLASK session {g.session}")
-
-            # g.session.refresh()
-            # print('new flask session')
         else:
             db.session = Database().session_b
 
     @staticmethod
     def clear_session():
-        #log.debug('Clearing DB session')
         if DatabaseSessionManager.in_flask_request():
-            # print(f"gsession: {g.session}")
             g.session.remove()
             # g.session = None
         else:

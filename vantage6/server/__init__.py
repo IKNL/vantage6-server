@@ -72,9 +72,13 @@ class ServerApp:
 
         # Setup websocket channel
         try:
+            log.warning('tryin gevent_uwsgi')
             self.socketio = SocketIO(self.app, async_mode='gevent_uwsgi')
         except Exception:
+            log.warning('gevent_uwsgi failed, default value is used')
             self.socketio = SocketIO(self.app)
+            log.warning(f'mode={self.socketio.async_mode}')
+
         # FIXME: temporary fix to get socket object into the namespace class
         DefaultSocketNamespace.socket = self.socketio
         self.socketio.on_namespace(DefaultSocketNamespace("/tasks"))
@@ -99,9 +103,9 @@ class ServerApp:
 
         # Prevent logging from urllib3
         logging.getLogger("urllib3").setLevel(logging.WARNING)
-        logging.getLogger("socketIO-client").setLevel(logging.WARNING)
-        logging.getLogger("engineio.server").setLevel(logging.WARNING)
-        logging.getLogger("socketio.server").setLevel(logging.WARNING)
+        logging.getLogger("socketIO-client").setLevel(logging.DEBUG)
+        logging.getLogger("engineio.server").setLevel(logging.DEBUG)
+        logging.getLogger("socketio.server").setLevel(logging.DEBUG)
 
     def configure_flask(self):
         """All flask config settings should go here."""
@@ -190,7 +194,7 @@ class ServerApp:
 
         @self.app.errorhandler(Exception)
         def error2_remove_db_session(error):
-            """In case an HTTP-exception occurs during the request.
+            """In case an Exception occurs during the request.
             It is important to close the db session to avoid having dangling
             sessions.
             """

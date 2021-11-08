@@ -154,6 +154,8 @@ class NodeToken(ServicesResources):
 
         if not node:  # login failed
             log.error("Api key is not recognised")
+            ip = request.environ.get('HTTP_X_FORWARDED_FOR', request.remote_addr)
+            log.debug(f' -- ip: {ip}')
             return {"msg": "Api key is not recognised!"}
 
         token = create_access_token(node)
