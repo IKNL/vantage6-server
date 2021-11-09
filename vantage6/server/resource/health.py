@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from datetime import time
+from time import sleep
 import logging
 
 from flask.globals import g
@@ -37,10 +38,38 @@ def setup(api, api_base, services):
         resource_class_kwargs=services
     )
 
+    api.add_resource(
+        BugLong,
+        path + "/long",
+        methods=('GET',),
+        resource_class_kwargs=services
+    )
+
+    api.add_resource(
+        BugShort,
+        path + "/short",
+        methods=('GET',),
+        resource_class_kwargs=services
+    )
+
 
 # ------------------------------------------------------------------------------
 # Resources / API's
 # ------------------------------------------------------------------------------
+class BugLong(ServicesResources):
+
+    def get(self):
+        g.var = 'long'
+        # self.socketio.sleep(10)
+        sleep(3)
+        return g.var
+
+class BugShort(ServicesResources):
+
+    def get(self):
+        g.var = 'short'
+        return g.var
+
 class Health(ServicesResources):
 
     @swag_from(str(Path(r"swagger/get_health.yaml")), endpoint='health')
@@ -51,7 +80,6 @@ class Health(ServicesResources):
         db_ok = False
         try:
             g.session.execute('SELECT 1')
-            time.sleep(5)
             db_ok = True
         except Exception as e:
             log.error("DB not responding")

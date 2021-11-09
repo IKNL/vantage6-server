@@ -104,7 +104,7 @@ class ServerApp:
         # Prevent logging from urllib3
         logging.getLogger("urllib3").setLevel(logging.WARNING)
         logging.getLogger("socketIO-client").setLevel(logging.DEBUG)
-        logging.getLogger("engineio.server").setLevel(logging.DEBUG)
+        logging.getLogger("engineio.server").setLevel(logging.WARNING)
         logging.getLogger("socketio.server").setLevel(logging.DEBUG)
 
     def configure_flask(self):
