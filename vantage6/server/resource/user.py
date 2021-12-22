@@ -112,6 +112,41 @@ class Users(UserBase):
 
         parameters:
             - in: query
+              name: username
+              schema:
+                type: string
+              description: username
+            - in: query
+              name: organization_id
+              schema:
+                type: integer
+              description: organization id
+            - in: query
+              name: firstname
+              schema:
+                type: string
+              description: first name
+            - in: query
+              name: lastname
+              schema:
+                type: string
+              description: last name
+            - in: query
+              name: email
+              schema:
+                type: string
+              description: email
+            - in: query
+              name: role
+              schema:
+                type: integer
+              description: role id
+            - in: query
+              name: rule
+              schema:
+                type: integer
+              description: rule id
+            - in: query
               name: page
               schema:
                 type: integer
@@ -133,7 +168,20 @@ class Users(UserBase):
 
         tags: ["User"]
         """
+        args = request.args
         q = DatabaseSessionManager.get_session().query(db.User)
+
+        # filter by any field of this endpoint
+        for param in ['username', 'organization_id', 'firstname', 'lastname',
+                      'email']:
+            if param in args:
+                q = q.filter(getattr(db.User, param) == args[param])
+        if 'role' in args:
+            q = q.join(db.Permission).join(db.Role)\
+                 .filter(db.Role.id == args['role'])
+        if 'rule' in args:
+            q = q.join(db.UserPermission).join(db.Rule)\
+                 .filter(db.Rule.id == args['rule'])
 
         # check permissions and apply filter if neccassary
         if not self.r.v_glo.can():
