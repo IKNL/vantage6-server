@@ -125,6 +125,26 @@ class Roles(RoleBase):
 
         parameters:
             - in: query
+              name: name
+              schema:
+                type: string
+              description: name of the role
+            - in: query
+              name: description
+              schema:
+                type: string
+              description: role description
+            - in: query
+              name: organization_id
+              schema:
+                type: integer
+              description: organization id
+            - in: query
+              name: rule_id
+              schema:
+                type: integer
+              description: rule that is part of a role
+            - in: query
               name: include
               schema:
                 type: string (can be multiple)
@@ -162,9 +182,9 @@ class Roles(RoleBase):
                 q = q.filter(getattr(db.Role, param) == args[param])
 
         # find roles containing a specific rule
-        if 'rule' in args:
+        if 'rule_id' in args:
             q = q.join(db.role_rule_association).join(db.Rule)\
-                 .filter(db.Rule.id == args['rule'])
+                 .filter(db.Rule.id == args['rule_id'])
 
         if not self.r.v_glo.can():
             if self.r.v_org.can():

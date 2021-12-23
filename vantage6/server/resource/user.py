@@ -137,15 +137,15 @@ class Users(UserBase):
                 type: string
               description: email
             - in: query
-              name: role
+              name: role_id
               schema:
                 type: integer
-              description: role id
+              description: role that is assigned to user
             - in: query
-              name: rule
+              name: rule_id
               schema:
                 type: integer
-              description: rule id
+              description: rule that is assigned to user
             - in: query
               name: page
               schema:
@@ -178,12 +178,12 @@ class Users(UserBase):
                 q = q.filter(getattr(db.User, param) == args[param])
 
         # find users with a particulare role or rule assigned
-        if 'role' in args:
+        if 'role_id' in args:
             q = q.join(db.Permission).join(db.Role)\
-                 .filter(db.Role.id == args['role'])
-        if 'rule' in args:
+                 .filter(db.Role.id == args['role_id'])
+        if 'rule_id' in args:
             q = q.join(db.UserPermission).join(db.Rule)\
-                 .filter(db.Rule.id == args['rule'])
+                 .filter(db.Rule.id == args['rule_id'])
 
         # check permissions and apply filter if neccassary
         if not self.r.v_glo.can():
