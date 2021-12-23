@@ -154,6 +154,17 @@ class Roles(RoleBase):
         q = DatabaseSessionManager.get_session().query(db.Role)
 
         auth_org_id = self.obtain_organization_id()
+        args = request.args
+
+        # filter by any field of this endpoint
+        for param in ['name', 'description', 'organization_id']:
+            if param in args:
+                q = q.filter(getattr(db.Role, param) == args[param])
+
+        # find roles containing a specific rule
+        if 'rule' in args:
+            q = q.join(db.role_rule_association).join(db.Rule)\
+                 .filter(db.Rule.id == args['rule'])
 
         if not self.r.v_glo.can():
             if self.r.v_org.can():

@@ -176,6 +176,8 @@ class Users(UserBase):
                       'email']:
             if param in args:
                 q = q.filter(getattr(db.User, param) == args[param])
+
+        # find users with a particulare role or rule assigned
         if 'role' in args:
             q = q.join(db.Permission).join(db.Role)\
                  .filter(db.Role.id == args['role'])
