@@ -196,7 +196,7 @@ class Results(ResultBase):
         q = DatabaseSessionManager.get_session().query(db_Result)
 
         # relation filters
-        for param in ['task_id', 'organization_id']:
+        for param in ['task_id', 'organization_id', 'port']:
             if param in args:
                 q = q.filter(getattr(db_Result, param) == args[param])
 
