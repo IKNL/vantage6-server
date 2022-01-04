@@ -164,6 +164,11 @@ class Results(ResultBase):
                 type: integer
               description: node id
             - in: query
+              name: port
+              schema:
+                type: integer
+              description: port number
+            - in: query
               name: include
               schema:
                 type: string (can be multiple)

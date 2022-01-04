@@ -161,6 +161,21 @@ class Tasks(TaskBase):
                 characters\n
                 * underscore sign (_) represents one, single character
             - in: query
+              name: description
+              schema:
+                type: string
+              description: description
+            - in: query
+              name: database
+              schema:
+                type: string
+              description: database description
+            - in: query
+              name: result_id
+              schema:
+                type: int
+              description: A result id that belongs to the task
+            - in: query
               name: include
               schema:
                 type: string
@@ -190,6 +205,7 @@ class Tasks(TaskBase):
         tags: ["Task"]
         """
         q = DatabaseSessionManager.get_session().query(db.Task)
+        args = request.args
 
         # obtain organization id
         auth_org_id = self.obtain_organization_id()
@@ -204,13 +220,15 @@ class Tasks(TaskBase):
                     HTTPStatus.UNAUTHORIZED
 
         # filter based on arguments
-        for param in ['initiator_id', 'collaboration_id', 'image',
-                      'parent_id', 'run_id']:
-            if param in request.args:
-                q = q.filter(getattr(db.Task, param) == request.args[param])
+        for param in ['description', 'database', 'initiator_id',
+                      'collaboration_id', 'image', 'parent_id', 'run_id']:
+            if param in args:
+                q = q.filter(getattr(db.Task, param) == args[param])
+        if 'result_id' in args:
+            q = q.join(db.Result).filter(db.Result.id == args['result_id'])
 
-        if 'name' in request.args:
-            q = q.filter(db.Task.name.like(request.args['name']))
+        if 'name' in args:
+            q = q.filter(db.Task.name.like(args['name']))
 
         q = q.order_by(desc(db.Task.id))
         # paginate tasks
