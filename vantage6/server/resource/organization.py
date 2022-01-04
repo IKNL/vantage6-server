@@ -126,6 +126,66 @@ class Organizations(OrganizationBase):
 
         parameters:
             - in: query
+              name: name
+              schema:
+                type: string
+              description: name of the organization
+            - in: query
+              name: domain
+              schema:
+                type: string
+              description: organization's web domain name
+            - in: query
+              name: address1
+              schema:
+                type: string
+              description: first address line
+            - in: query
+              name: address2
+              schema:
+                type: string
+              description: second address line
+            - in: query
+              name: zipcode
+              schema:
+                type: string
+              description: zipcode
+            - in: query
+              name: country
+              schema:
+                type: string
+              description: country
+            - in: query
+              name: collaboration_id
+              schema:
+                type: integer
+              description: collaboration id
+            - in: query
+              name: result_id
+              schema:
+                type: integer
+              description: result id
+            - in: query
+              name: node_id
+              schema:
+                type: integer
+              description: node id
+            - in: query
+              name: user_id
+              schema:
+                type: integer
+              description: user id
+            - in: query
+              name: task_id
+              schema:
+                type: integer
+              description: task id
+            - in: query
+              name: role_id
+              schema:
+                type: integer
+              description: role id
+            - in: query
               name: include
               schema:
                 type: string (can be multiple)
@@ -157,11 +217,32 @@ class Organizations(OrganizationBase):
 
         # Obtain the organization of the requester
         auth_org = self.obtain_auth_organization()
+        args = request.args
 
         # query
         q = g.session.query(db.Organization)
 
-        # filter de list of organizations based on the scope
+        # filter by a field of this endpoint
+        for param in ['name', 'domain', 'address1', 'address2', 'zipcode',
+                      'country']:
+            if param in args:
+                q = q.filter(getattr(db.Organization, param) == args[param])
+
+        if 'collaboration_id' in args:
+            q = q.join(db.Member).join(db.Collaboration)\
+                 .filter(db.Collaboration.id == args['collaboration_id'])
+        if 'result_id' in args:
+            q = q.join(db.Result).filter(db.Result.id == args['result_id'])
+        if 'node_id' in args:
+            q = q.join(db.Node).filter(db.Node.id == args['node_id'])
+        if 'user_id' in args:
+            q = q.join(db.User).filter(db.User.id == args['user_id'])
+        if 'task_id' in args:
+            q = q.join(db.Task.filter(db.Task.id == args['task_id']))
+        if 'role_id' in args:
+            q = q.join(db.Role).filter(db.Role.id == args['role_id'])
+
+        # filter the list of organizations based on the scope
         if self.r.v_glo.can():
             # view all organizations
             log.debug('glo')
