@@ -147,6 +147,16 @@ class Users(UserBase):
                 type: integer
               description: rule that is assigned to user
             - in: query
+              name: last_seen_from
+              schema:
+                type: date (yyyy-mm-dd)
+              description: show only users seen since this date
+            - in: query
+              name: last_seen_till
+              schema:
+                type: date (yyyy-mm-dd)
+              description: show only users last seen before this date
+            - in: query
               name: page
               schema:
                 type: integer
@@ -176,6 +186,10 @@ class Users(UserBase):
                       'email']:
             if param in args:
                 q = q.filter(getattr(db.User, param) == args[param])
+        if f'last_seen_till' in args:
+            q = q.filter(db.User.last_seen <= args['last_seen_till'])
+        if f'last_seen_from' in args:
+            q = q.filter(db.User.last_seen >= args['last_seen_from'])
 
         # find users with a particulare role or rule assigned
         if 'role_id' in args:
