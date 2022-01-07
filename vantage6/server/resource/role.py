@@ -9,6 +9,7 @@ from pathlib import Path
 from flask_restful import reqparse
 from vantage6.server import db
 from vantage6.server.model.base import DatabaseSessionManager
+from sqlalchemy import or_
 
 from vantage6.server.resource import (
     with_user,
@@ -145,10 +146,10 @@ class Roles(RoleBase):
                 type: integer
               description: rule that is part of a role
             - in: query
-              name: include
+              name: include_root
               schema:
-                type: string (can be multiple)
-              description: what to include ('metadata')
+                 type: boolean
+              description: whether or not to include root role
             - in: query
               name: page
               schema:
@@ -176,10 +177,23 @@ class Roles(RoleBase):
         auth_org_id = self.obtain_organization_id()
         args = request.args
 
-        # filter by any field of this endpoint
-        for param in ['name', 'description', 'organization_id']:
-            if param in args:
-                q = q.filter(getattr(db.Role, param) == args[param])
+        # filter by organization id (include root role if desired)
+        org_filters = args.getlist('organization_id')
+        if org_filters:
+            if 'include_root' in args and args['include_root']:
+                q = q.filter(or_(
+                    db.Role.organization_id.in_(org_filters),
+                    db.Role.organization_id == None
+                ))
+            else:
+                q = q.filter(db.Role.organization_id).in_(org_filters)
+
+        for param in ['name', 'description']:
+            filters = args.getlist(param)
+            if filters:
+                q = q.filter(or_(*[
+                    getattr(db.Role, param).like(f) for f in filters
+                ]))
 
         # find roles containing a specific rule
         if 'rule_id' in args:
@@ -369,11 +383,6 @@ class RoleRules(RoleBase):
               minimum: 1
               description: Role id
               required: true
-            - in: query
-              name: include
-              schema:
-                 type: string (can be multiple)
-              description: what to include ('task', 'metadata')
             - in: query
               name: page
               schema:
