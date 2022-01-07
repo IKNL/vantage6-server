@@ -77,11 +77,6 @@ class Rules(ServicesResources):
                 type: string
               description: rule scope
             - in: query
-              name: description
-              schema:
-                type: string
-              description: rule description
-            - in: query
               name: role_id
               schema:
                 type: integer
@@ -118,7 +113,7 @@ class Rules(ServicesResources):
         args = request.args
 
         # filter by any field of this endpoint
-        for param in ['name', 'operation', 'scope', 'description']:
+        for param in ['name', 'operation', 'scope']:
             if param in args:
                 q = q.filter(getattr(db.Rule, param) == args[param])
 

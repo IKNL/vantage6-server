@@ -129,27 +129,11 @@ class Organizations(OrganizationBase):
               name: name
               schema:
                 type: string
-              description: name of the organization
-            - in: query
-              name: domain
-              schema:
-                type: string
-              description: organization's web domain name
-            - in: query
-              name: address1
-              schema:
-                type: string
-              description: first address line
-            - in: query
-              name: address2
-              schema:
-                type: string
-              description: second address line
-            - in: query
-              name: zipcode
-              schema:
-                type: string
-              description: zipcode
+              description: >-
+                Name to match with a LIKE operator. \n
+                * The percent sign (%) represents zero, one, or multiple
+                characters\n
+                * underscore sign (_) represents one, single character
             - in: query
               name: country
               schema:
@@ -223,11 +207,10 @@ class Organizations(OrganizationBase):
         q = g.session.query(db.Organization)
 
         # filter by a field of this endpoint
-        for param in ['name', 'domain', 'address1', 'address2', 'zipcode',
-                      'country']:
-            if param in args:
-                q = q.filter(getattr(db.Organization, param) == args[param])
-
+        if 'name' in args:
+            q = q.filter(db.Organization.name.like(args['name']))
+        if 'country' in args:
+            q = q.filter(db.Organization.country == args['country'])
         if 'collaboration_id' in args:
             q = q.join(db.Member).join(db.Collaboration)\
                  .filter(db.Collaboration.id == args['collaboration_id'])

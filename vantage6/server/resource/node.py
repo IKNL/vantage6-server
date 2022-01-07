@@ -110,7 +110,11 @@ class Nodes(NodeBase):
               name: name
               schema:
                 type: string
-              description: node name
+              description: >-
+                Name to match with a LIKE operator. \n
+                * The percent sign (%) represents zero, one, or multiple
+                characters\n
+                * underscore sign (_) represents one, single character
             - in: query
               name: organization_id
               schema:
@@ -125,7 +129,7 @@ class Nodes(NodeBase):
               name: status
               schema:
                 type: string
-              description: node status
+              description: node status ('online', 'offline')
             - in: query
               name: ip
               schema:
@@ -172,10 +176,11 @@ class Nodes(NodeBase):
         auth_org_id = self.obtain_organization_id()
         args = request.args
 
-        for param in ['name', 'organization_id', 'collaboration_id',
-                      'status', 'ip']:
+        for param in ['organization_id', 'collaboration_id', 'status', 'ip']:
             if param in args:
                 q = q.filter(getattr(db.Node, param) == args[param])
+        if 'name' in args:
+            q = q.filter(db.Node.name.like(args['name']))
 
         if f'last_seen_till' in args:
             q = q.filter(db.Node.last_seen <= args['last_seen_till'])

@@ -129,12 +129,20 @@ class Roles(RoleBase):
               name: name
               schema:
                 type: string
-              description: name of the role
+              description: >-
+                Name to match with a LIKE operator. \n
+                * The percent sign (%) represents zero, one, or multiple
+                characters\n
+                * underscore sign (_) represents one, single character
             - in: query
               name: description
               schema:
                 type: string
-              description: role description
+              description: >-
+                Description to match with a LIKE operator. \n
+                * The percent sign (%) represents zero, one, or multiple
+                characters\n
+                * underscore sign (_) represents one, single character
             - in: query
               name: organization_id
               schema:
@@ -177,7 +185,7 @@ class Roles(RoleBase):
         auth_org_id = self.obtain_organization_id()
         args = request.args
 
-        # filter by organization id (include root role if desired)
+        # filter by organization ids (include root role if desired)
         org_filters = args.getlist('organization_id')
         if org_filters:
             if 'include_root' in args and args['include_root']:
@@ -188,6 +196,7 @@ class Roles(RoleBase):
             else:
                 q = q.filter(db.Role.organization_id).in_(org_filters)
 
+        # filter by one or more names or descriptions
         for param in ['name', 'description']:
             filters = args.getlist(param)
             if filters:

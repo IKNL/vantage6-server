@@ -115,7 +115,11 @@ class Users(UserBase):
               name: username
               schema:
                 type: string
-              description: username
+              description: >-
+                Name to match with a LIKE operator. \n
+                * The percent sign (%) represents zero, one, or multiple
+                characters\n
+                * underscore sign (_) represents one, single character
             - in: query
               name: organization_id
               schema:
@@ -125,17 +129,29 @@ class Users(UserBase):
               name: firstname
               schema:
                 type: string
-              description: first name
+              description: >-
+                Name to match with a LIKE operator. \n
+                * The percent sign (%) represents zero, one, or multiple
+                characters\n
+                * underscore sign (_) represents one, single character
             - in: query
               name: lastname
               schema:
                 type: string
-              description: last name
+              description: >-
+                Name to match with a LIKE operator. \n
+                * The percent sign (%) represents zero, one, or multiple
+                characters\n
+                * underscore sign (_) represents one, single character
             - in: query
               name: email
               schema:
                 type: string
-              description: email
+              description: >-
+                Email to match with a LIKE operator. \n
+                * The percent sign (%) represents zero, one, or multiple
+                characters\n
+                * underscore sign (_) represents one, single character
             - in: query
               name: role_id
               schema:
@@ -182,10 +198,11 @@ class Users(UserBase):
         q = DatabaseSessionManager.get_session().query(db.User)
 
         # filter by any field of this endpoint
-        for param in ['username', 'organization_id', 'firstname', 'lastname',
-                      'email']:
+        for param in ['username', 'firstname', 'lastname', 'email']:
             if param in args:
-                q = q.filter(getattr(db.User, param) == args[param])
+                q = q.filter(getattr(db.User, param).like(args[param]))
+        if 'organization_id' in args:
+            q = q.filter(db.User.organization_id == args['organization_id'])
         if f'last_seen_till' in args:
             q = q.filter(db.User.last_seen <= args['last_seen_till'])
         if f'last_seen_from' in args:

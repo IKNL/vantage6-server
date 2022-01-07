@@ -146,7 +146,11 @@ class Collaborations(CollaborationBase):
               name: name
               schema:
                 type: string
-              description: name of the collaboration
+              description: >-
+                Name to match with a LIKE operator. \n
+                * The percent sign (%) represents zero, one, or multiple
+                characters\n
+                * underscore sign (_) represents one, single character
             - in: query
               name: encrypted
               schema:
@@ -191,9 +195,10 @@ class Collaborations(CollaborationBase):
         args = request.args
 
         # filter by a field of this endpoint
-        for param in ['name', 'encrypted']:
-            if param in args:
-                q = q.filter(getattr(db.Collaboration, param) == args[param])
+        if 'encrypted' in args:
+            q = q.filter(db.Collaboration.encrypted == args['encrypted'])
+        if 'name' in args:
+            q = q.filter(db.Collaboration.name.like(args['name']))
 
         # find collaborations containing a specific organization
         if 'organization_id' in args:

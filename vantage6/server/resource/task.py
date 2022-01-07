@@ -140,7 +140,12 @@ class Tasks(TaskBase):
               name: image
               schema:
                 type: str
-              description: (Docker) image name which is used in the task
+              description: >-
+                (Docker) image name which is used in the task. Name to match
+                with a LIKE operator. \n
+                * The percent sign (%) represents zero, one, or multiple
+                characters\n
+                * underscore sign (_) represents one, single character
             - in: query
               name: parent_id
               schema:
@@ -164,12 +169,20 @@ class Tasks(TaskBase):
               name: description
               schema:
                 type: string
-              description: description
+              description: >-
+                Description to match with a LIKE operator. \n
+                * The percent sign (%) represents zero, one, or multiple
+                characters\n
+                * underscore sign (_) represents one, single character
             - in: query
               name: database
               schema:
                 type: string
-              description: database description
+              description: >-
+                Database description to match with a LIKE operator. \n
+                * The percent sign (%) represents zero, one, or multiple
+                characters\n
+                * underscore sign (_) represents one, single character
             - in: query
               name: result_id
               schema:
@@ -220,15 +233,15 @@ class Tasks(TaskBase):
                     HTTPStatus.UNAUTHORIZED
 
         # filter based on arguments
-        for param in ['description', 'database', 'initiator_id',
-                      'collaboration_id', 'image', 'parent_id', 'run_id']:
+        for param in ['initiator_id', 'collaboration_id', 'parent_id',
+                      'run_id']:
             if param in args:
                 q = q.filter(getattr(db.Task, param) == args[param])
+        for param in ['name', 'image', 'description', 'database']:
+            if param in args:
+                q = q.filter(getattr(db.Task, param).like(args[param]))
         if 'result_id' in args:
             q = q.join(db.Result).filter(db.Result.id == args['result_id'])
-
-        if 'name' in args:
-            q = q.filter(db.Task.name.like(args['name']))
 
         q = q.order_by(desc(db.Task.id))
         # paginate tasks
