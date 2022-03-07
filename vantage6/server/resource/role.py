@@ -160,8 +160,9 @@ class Roles(RoleBase):
                 q = q.join(db.Organization)\
                     .filter(db.Role.organization_id == auth_org_id)
             else:
-                return {"msg": "You do not have permission to view this."}, \
-                    HTTPStatus.UNAUTHORIZED
+                # allow users without permission to view only their own roles
+                ids = [role.id for role in g.user.roles]
+                q = q.filter(db.Role.id.in_(ids))
 
         page = Pagination.from_query(query=q, request=request)
 
@@ -236,8 +237,8 @@ class Role(RoleBase):
     def get(self, id):
         role = db.Role.get(id)
 
-        # check permissions
-        if not self.r.v_glo.can():
+        # check permissions. A user can always view their own roles
+        if not self.r.v_glo.can() or role in g.user.roles:
             if not (self.r.v_org.can()
                     and role.organization == g.user.organization):
                 return {"msg": "You do not have permission to view this."},\
