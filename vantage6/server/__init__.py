@@ -23,10 +23,9 @@ from flask_socketio import SocketIO
 
 from vantage6.cli.context import ServerContext
 from vantage6.cli.rabbitmq.queue_manager import get_rabbitmq_uri
-from vantage6.server.model.base import DatabaseSessionManager, Database
 from vantage6.server import db
 from vantage6.server.resource._schema import HATEOASModelSchema
-from vantage6.server.model.base import DatabaseSessionManager
+from vantage6.server.model.base import DatabaseSessionManager, Database
 from vantage6.common import logger_name
 from vantage6.server.permission import RuleNeed, PermissionManager
 from vantage6.server.globals import (
