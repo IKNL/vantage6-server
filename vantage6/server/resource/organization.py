@@ -145,31 +145,6 @@ class Organizations(OrganizationBase):
                 type: integer
               description: collaboration id
             - in: query
-              name: result_id
-              schema:
-                type: integer
-              description: result id
-            - in: query
-              name: node_id
-              schema:
-                type: integer
-              description: node id
-            - in: query
-              name: user_id
-              schema:
-                type: integer
-              description: user id
-            - in: query
-              name: task_id
-              schema:
-                type: integer
-              description: task id
-            - in: query
-              name: role_id
-              schema:
-                type: integer
-              description: role id
-            - in: query
               name: include
               schema:
                 type: string (can be multiple)
@@ -214,16 +189,6 @@ class Organizations(OrganizationBase):
         if 'collaboration_id' in args:
             q = q.join(db.Member).join(db.Collaboration)\
                  .filter(db.Collaboration.id == args['collaboration_id'])
-        if 'result_id' in args:
-            q = q.join(db.Result).filter(db.Result.id == args['result_id'])
-        if 'node_id' in args:
-            q = q.join(db.Node).filter(db.Node.id == args['node_id'])
-        if 'user_id' in args:
-            q = q.join(db.User).filter(db.User.id == args['user_id'])
-        if 'task_id' in args:
-            q = q.join(db.Task.filter(db.Task.id == args['task_id']))
-        if 'role_id' in args:
-            q = q.join(db.Role).filter(db.Role.id == args['role_id'])
 
         # filter the list of organizations based on the scope
         if self.r.v_glo.can():
