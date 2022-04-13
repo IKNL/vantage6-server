@@ -49,7 +49,7 @@ setup(
         'questionary==1.5.2',
         'marshmallow==2.16.3',
         'marshmallow-sqlalchemy==0.15.0',
-        'ipython==7.13.0',
+        'ipython==7.16.3',
         'requests==2.25.1',
         'psutil==5.7.0',
         'gevent==20.9.0',
@@ -57,6 +57,7 @@ setup(
         'requests-oauthlib==1.3.0',
         'gevent-websocket==0.10.1',
         'eventlet==0.33.0',
+        'kombu==5.2.2',
         f'vantage6 == {version_ns["__version__"]}',
         f'vantage6-common == {version_ns["__version__"]}'
     ],

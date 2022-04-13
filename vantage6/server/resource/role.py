@@ -7,10 +7,10 @@ from flask import g
 from flasgger import swag_from
 from pathlib import Path
 from flask_restful import reqparse
-from vantage6.server import db
-from vantage6.server.model.base import DatabaseSessionManager
 from sqlalchemy import or_
 
+from vantage6.server import db
+from vantage6.server.model.base import DatabaseSessionManager
 from vantage6.server.resource import (
     with_user,
     ServicesResources
@@ -210,12 +210,18 @@ class Roles(RoleBase):
                  .filter(db.Rule.id == args['rule_id'])
 
         if not self.r.v_glo.can():
+            own_role_ids = [role.id for role in g.user.roles]
             if self.r.v_org.can():
+                # allow user to view all roles of their organization and any
+                # other roles they may have themselves
                 q = q.join(db.Organization)\
-                    .filter(db.Role.organization_id == auth_org_id)
+                    .filter(or_(
+                        db.Role.organization_id == auth_org_id,
+                        db.Role.id.in_(own_role_ids)
+                    ))
             else:
-                return {"msg": "You do not have permission to view this."}, \
-                    HTTPStatus.UNAUTHORIZED
+                # allow users without permission to view only their own roles
+                q = q.filter(db.Role.id.in_(own_role_ids))
 
         page = Pagination.from_query(query=q, request=request)
 
@@ -254,21 +260,23 @@ class Roles(RoleBase):
         if denied:
             return denied, HTTPStatus.UNAUTHORIZED
 
-        # if trying to create a role for another organization
-        if data["organization_id"] and not self.r.c_glo.can():
-            return {'msg': 'You cannot create roles for other organizations'},\
-                HTTPStatus.UNAUTHORIZED
-        elif data["organization_id"] and self.r.c_glo.can():
-            organization_id = data["organization_id"]
+        # set the organization id
+        organization_id = (
+            data['organization_id']
+            if data['organization_id'] else g.user.organization_id
+        )
+        # verify that the organization for which we create a role exists
+        if not db.Organization.get(organization_id):
+            return {'msg': f'organization "{organization_id}" does not '
+                    'exist!'}, HTTPStatus.NOT_FOUND
 
-            # verify that the organization exists
-            if not db.Organization.get(organization_id):
-                return {'msg': f'organization "{organization_id}" does not '
-                        'exist!'}, HTTPStatus.NOT_FOUND
-        elif (not data['organization_id'] and self.r.c_glo.can()) or \
-                self.r.c_org.can():
-            organization_id = g.user.organization_id
-        else:
+        # check if user is allowed to create this role
+        if (not self.r.c_glo.can() and
+                organization_id != g.user.organization_id):
+            return {
+                'msg': 'You cannot create roles for other organizations!'
+            }, HTTPStatus.UNAUTHORIZED
+        elif not self.r.c_glo.can() and not self.r.c_org.can():
             return {'msg': 'You lack the permission to create roles!'}, \
                 HTTPStatus.UNAUTHORIZED
 
@@ -288,8 +296,8 @@ class Role(RoleBase):
     def get(self, id):
         role = db.Role.get(id)
 
-        # check permissions
-        if not self.r.v_glo.can():
+        # check permissions. A user can always view their own roles
+        if not (self.r.v_glo.can() or role in g.user.roles):
             if not (self.r.v_org.can()
                     and role.organization == g.user.organization):
                 return {"msg": "You do not have permission to view this."},\

@@ -16,7 +16,7 @@ from vantage6.server.permission import (
     PermissionManager,
     Operation as P
 )
-from vantage6.server.resource import only_for, ServicesResources
+from vantage6.server.resource import only_for, ServicesResources, with_user
 from vantage6.server.resource._schema import (
     TaskSchema,
     TaskIncludedSchema,
@@ -278,18 +278,37 @@ class Tasks(TaskBase):
                 "the collaboration."
             )}, HTTPStatus.BAD_REQUEST
 
+        # check if all the organizations have a registered node
+        nodes = DatabaseSessionManager.get_session().query(db.Node)\
+            .filter(db.Node.organization_id.in_(org_ids))\
+            .filter(db.Node.collaboration_id == collaboration_id)\
+            .all()
+        if len(nodes) < len(org_ids):
+            present_nodes = [node.organization_id for node in nodes]
+            missing = [str(id) for id in org_ids if id not in present_nodes]
+            return {"msg": (
+                "Cannot create this task because there are no nodes registered"
+                f" for the following organization(s): {', '.join(missing)}."
+            )}, HTTPStatus.BAD_REQUEST
+
         # figure out the initiator organization of the task
         if g.user:
             initiator = g.user.organization
         else:  # g.container:
             initiator = db.Node.get(g.container["node_id"]).organization
 
+        # check if the initiator is part of the collaboration
+        if initiator not in collaboration.organizations:
+            return {
+                "msg": "You can only create tasks for collaborations "
+                       "you are participating in!"
+            }, HTTPStatus.UNAUTHORIZED
+
         # Create the new task in the database
         image = data.get('image', '')
 
         # verify permissions
         if g.user:
-
             if not self.r.c_glo.can():
                 c_orgs = collaboration.organizations
                 if not (self.r.c_org.can() and g.user.organization in c_orgs):
@@ -446,7 +465,7 @@ class Task(TaskBase):
 
         return schema.dump(task, many=False).data, HTTPStatus.OK
 
-    @only_for(['user'])
+    @with_user
     @swag_from(str(Path(r"swagger/delete_task_with_id.yaml")),
                endpoint='task_with_id')
     def delete(self, id):

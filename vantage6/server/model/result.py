@@ -1,13 +1,13 @@
 import datetime
-from flask.globals import session
+import logging
 
 from sqlalchemy import Column, Text, DateTime, Integer, ForeignKey
 from sqlalchemy.orm import relationship
+from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy.ext.hybrid import hybrid_property
 
+from vantage6.common import logger_name
 from vantage6.server.model.base import Base
-
-
 from vantage6.server.model import (
     Node,
     Collaboration,
@@ -15,6 +15,9 @@ from vantage6.server.model import (
     Organization
 )
 from vantage6.server.model.base import DatabaseSessionManager
+
+log_ = logging.getLogger(logger_name(__name__))
+
 
 class Result(Base):
     """Result of a Task as executed by a Node.
@@ -32,24 +35,29 @@ class Result(Base):
     started_at = Column(DateTime)
     finished_at = Column(DateTime)
     log = Column(Text)
-    port = Column(Integer)
 
     # relationships
     task = relationship("Task", back_populates="results")
     organization = relationship("Organization", back_populates="results")
+    ports = relationship("AlgorithmPort", back_populates="result")
 
     @property
     def node(self):
         session = DatabaseSessionManager.get_session()
-        node = session.query(Node)\
-            .join(Collaboration)\
-            .join(Organization)\
-            .join(Result)\
-            .join(Task)\
-            .filter(Result.id == self.id)\
-            .filter(self.organization_id == Node.organization_id)\
-            .filter(Task.collaboration_id == Node.collaboration_id)\
-            .one()
+        try:
+            node = session.query(Node)\
+                .join(Collaboration)\
+                .join(Organization)\
+                .join(Result)\
+                .join(Task)\
+                .filter(Result.id == self.id)\
+                .filter(self.organization_id == Node.organization_id)\
+                .filter(Task.collaboration_id == Node.collaboration_id)\
+                .one()
+        except NoResultFound:
+            log_.warn("No node exists for organization_id "
+                      f"{self.organization_id} in the current collaboration!")
+            return None
         return node
 
     @hybrid_property

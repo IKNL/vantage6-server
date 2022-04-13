@@ -18,7 +18,6 @@ from vantage6.server.permission import (
 )
 from vantage6.server.resource import (
     with_user,
-    only_for,
     ServicesResources
 )
 from vantage6.server.resource.pagination import Pagination
@@ -58,8 +57,6 @@ def permissions(permissions: PermissionManager):
         description='View any user')
     add(S.ORGANIZATION, P.VIEW,
         description='View users from your organization')
-    add(S.OWN, P.VIEW,
-        description='View your own data')
     add(S.GLOBAL, P.CREATE,
         description='Create a new user for any organization')
     add(S.ORGANIZATION, P.CREATE,
@@ -93,7 +90,7 @@ class UserBase(ServicesResources):
 
 class Users(UserBase):
 
-    @only_for(['user'])
+    @with_user
     def get(self):
         """List users
         ---
@@ -197,6 +194,7 @@ class Users(UserBase):
         args = request.args
         q = DatabaseSessionManager.get_session().query(db.User)
 
+
         # filter by any field of this endpoint
         for param in ['username', 'firstname', 'lastname', 'email']:
             if param in args:
@@ -273,7 +271,7 @@ class Users(UserBase):
 
         # check that user is allowed to create users
         if not (self.r.c_glo.can() or self.r.c_org.can()):
-            return {'msg': 'You lack the permission to do that!2'}, \
+            return {'msg': 'You lack the permission to do that!'}, \
                 HTTPStatus.UNAUTHORIZED
 
         # process the required roles. It is only possible to assign roles with
@@ -289,6 +287,15 @@ class Users(UserBase):
                     if denied:
                         return denied, HTTPStatus.UNAUTHORIZED
                     roles.append(role_)
+
+                    # validate that the assigned role is either a general role
+                    # or a role pertaining to that organization
+                    if (role_.organization and
+                            role_.organization.id != organization_id):
+                        return {'msg': (
+                            "You can't assign that role as the role belongs to"
+                            " a different organization than the user."
+                        )}, HTTPStatus.UNAUTHORIZED
 
         # You can only assign rules that you already have to others.
         potential_rules = data["rules"]
@@ -318,7 +325,7 @@ class Users(UserBase):
 
 class User(UserBase):
 
-    @only_for(['user'])
+    @with_user
     def get(self, id):
         """Get user
         ---
@@ -364,11 +371,11 @@ class User(UserBase):
         # allow user to be returned if:
         # 1. auth can see all users
         # 2. auth can see organization users and user is within organization
-        # 3. auth is requesting own user details and is allowed to do so
+        # 3. auth is requesting own user details
         if (
             self.r.v_glo.can() or
             (self.r.v_org.can() and same_org) or
-            (self.r.v_own.can() and same_user)
+            same_user
         ):
             return user_schema.dump(user, many=False).data, HTTPStatus.OK
         else:
@@ -409,6 +416,11 @@ class User(UserBase):
         if data["password"]:
             user.password = data["password"]
         if data["email"]:
+            if (user.email != data["email"] and
+                    db.User.exists("email", data["email"])):
+                return {
+                    "msg": "User with that email already exists."
+                }, HTTPStatus.BAD_REQUEST
             user.email = data["email"]
 
         # request parser is awefull with lists
@@ -433,6 +445,15 @@ class User(UserBase):
                 denied = self.permissions.verify_user_rules(role.rules)
                 if denied:
                     return denied, HTTPStatus.UNAUTHORIZED
+
+                # validate that the assigned role is either a general role or a
+                # role pertaining to that organization
+                if (role.organization and
+                        role.organization.id != user.organization_id):
+                    return {'msg': (
+                        "You can't assign that role to that user as the role "
+                        "belongs to a different organization than the user "
+                    )}, HTTPStatus.UNAUTHORIZED
 
             user.roles = roles
 
