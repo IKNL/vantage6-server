@@ -10,7 +10,6 @@ from vantage6.server import db
 from vantage6.common import logger_name
 from vantage6.common.globals import STRING_ENCODING
 
-
 log = logging.getLogger(logger_name(__name__))
 
 
@@ -82,16 +81,21 @@ class HATEOASModelSchema(ModelSchema):
         hateos_list = list()
         plural_ = plural if plural else name+"s"
         endpoint = endpoint if endpoint else name
-        for elem in getattr(obj, plural_):
+        from vantage6.server.model import Result, Organization
+        from vantage6.server.model.base import DatabaseSessionManager
+        if isinstance(obj, Organization) and plural_ == 'results':
+            stuff = obj.get_ids(Result)
+        else:
+            stuff = getattr(obj, plural_)
+        for elem in stuff:
             hateos = self._hateos_from_related(elem, endpoint)
             hateos_list.append(hateos)
 
-        if hateos_list:
-            return hateos_list
-        else:
-            return None
+        return hateos_list if hateos_list else None
 
     def _hateos_from_related(self, elem, name):
+        # TODO make this more efficient by directly passing id and endpoint
+        # instead of computing them (potentially 1000s of times)
         _id = elem.id
         endpoint = name+"_with_id"
         if self.api:
