@@ -15,8 +15,7 @@ from vantage6.server.permission import (
     PermissionManager
 )
 from vantage6.server.resource import (
-    with_user_or_node, only_for,
-    ServicesResources
+    with_user_or_node, only_for, with_user, ServicesResources
 )
 from vantage6.server.resource._schema import (
     OrganizationSchema,
@@ -126,6 +125,25 @@ class Organizations(OrganizationBase):
 
         parameters:
             - in: query
+              name: name
+              schema:
+                type: string
+              description: >-
+                Name to match with a LIKE operator. \n
+                * The percent sign (%) represents zero, one, or multiple
+                characters\n
+                * underscore sign (_) represents one, single character
+            - in: query
+              name: country
+              schema:
+                type: string
+              description: country
+            - in: query
+              name: collaboration_id
+              schema:
+                type: integer
+              description: collaboration id
+            - in: query
               name: include
               schema:
                 type: string (can be multiple)
@@ -157,11 +175,21 @@ class Organizations(OrganizationBase):
 
         # Obtain the organization of the requester
         auth_org = self.obtain_auth_organization()
+        args = request.args
 
         # query
         q = g.session.query(db.Organization)
 
-        # filter de list of organizations based on the scope
+        # filter by a field of this endpoint
+        if 'name' in args:
+            q = q.filter(db.Organization.name.like(args['name']))
+        if 'country' in args:
+            q = q.filter(db.Organization.country == args['country'])
+        if 'collaboration_id' in args:
+            q = q.join(db.Member).join(db.Collaboration)\
+                 .filter(db.Collaboration.id == args['collaboration_id'])
+
+        # filter the list of organizations based on the scope
         if self.r.v_glo.can():
             # view all organizations
             log.debug('glo')
@@ -195,7 +223,7 @@ class Organizations(OrganizationBase):
         # serialization of DB model
         return self.response(page, org_schema)
 
-    @only_for(["user"])
+    @with_user
     @swag_from(str(Path(r"swagger/post_organization_without_id.yaml")),
                endpoint='organization_without_id')
     def post(self):
